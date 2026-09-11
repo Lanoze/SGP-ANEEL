@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryOne, pool } from '@/lib/db';
+import { createAuditLog } from '@/lib/audit';
 import { requireRole } from '@/lib/rbac';
 import { createLancamentoSchema } from '@/lib/schemas';
 
@@ -30,13 +31,17 @@ export async function POST(request: Request) {
       if (!rubrica) { await client.query('ROLLBACK'); return NextResponse.json({ error: 'Rubrica não encontrada' }, { status: 404 }); }
       if (rubrica.saldo < valor) { await client.query('ROLLBACK'); return NextResponse.json({ error: 'Saldo insuficiente', saldo_disponivel: rubrica.saldo }, { status: 400 }); }
 
-      const lancamento = await queryOne(
+      const lancamento = await queryOne<{ id: string }>(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,
         [rubrica_projeto_id, descricao, valor, data_despesa, auth.user.userId]
       );
 
       await client.query('COMMIT');
+
+      const ip = request.headers.get('x-forwarded-for') || 'unknown';
+      await createAuditLog({ usuario_id: auth.user.userId, acao: 'CREATE', tabela_origem: 'lancamentos', registro_id: lancamento!.id, estado_posterior: { rubrica_projeto_id, descricao, valor, data_despesa }, endereco_ip: ip });
+
       return NextResponse.json(lancamento, { status: 201 });
     } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
   } catch (error) {

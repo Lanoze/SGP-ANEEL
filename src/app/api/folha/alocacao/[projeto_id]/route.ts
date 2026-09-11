@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
+import { createAuditLog } from '@/lib/audit';
 import { requireRole } from '@/lib/rbac';
 import { createAlocacaoSchema } from '@/lib/schemas';
 
@@ -36,22 +37,27 @@ export async function POST(request: Request) {
 
     const valor_mensal_calculado = calcularValorMensal(valor_nominal_capes, nivel_complemento);
 
-    const alocacao = await queryOne(
+    const alocacao = await queryOne<{ id: string }>(
       `INSERT INTO alocacao_rh (projeto_id, usuario_id, papel_projeto, nivel_academico, valor_nominal_capes, nivel_complemento, valor_mensal_calculado)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
       [projeto_id, usuario_id, papel_projeto, nivel_academico, valor_nominal_capes, nivel_complemento, valor_mensal_calculado]
     );
 
     const projeto = await queryOne<{ data_inicio: string; data_fim: string }>('SELECT data_inicio, data_fim FROM projetos WHERE id = $1', [projeto_id]);
-    if (projeto) {
+    if (projeto && alocacao) {
       const meses = gerarMeses(projeto.data_inicio, projeto.data_fim);
       for (const { ano, mes } of meses) {
         await query(
           `INSERT INTO competencias_folha (alocacao_rh_id, ano, mes, valor_devido, status)
            VALUES ($1, $2, $3, $4, 'PENDENTE') ON CONFLICT (alocacao_rh_id, ano, mes) DO NOTHING`,
-          [alocacao!.id, ano, mes, valor_mensal_calculado]
+           [alocacao.id, ano, mes, valor_mensal_calculado]
         );
       }
+    }
+
+    const ip = request.headers.get('x-forwarded-for') || 'unknown';
+    if (alocacao) {
+      await createAuditLog({ usuario_id: auth.user.userId, acao: 'CREATE', tabela_origem: 'alocacao_rh', registro_id: alocacao.id, estado_posterior: { projeto_id, usuario_id, papel_projeto, nivel_academico, nivel_complemento, valor_mensal_calculado }, endereco_ip: ip });
     }
 
     return NextResponse.json(alocacao, { status: 201 });

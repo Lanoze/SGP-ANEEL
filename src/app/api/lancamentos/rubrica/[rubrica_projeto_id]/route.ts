@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
+import { requireAuth } from '@/lib/rbac';
 
 export async function GET(request: Request, { params }: { params: Promise<{ rubrica_projeto_id: string }> }) {
   try {
+    const auth = requireAuth(request);
+    if (auth.error) return auth.error;
+
     const { rubrica_projeto_id } = await params;
     const url = new URL(request.url);
     const page = parseInt(url.searchParams.get('page') || '1');

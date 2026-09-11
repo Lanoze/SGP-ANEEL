@@ -4,8 +4,11 @@ import { createAuditLog } from '@/lib/audit';
 import { requireRole } from '@/lib/rbac';
 import { createProjetoSchema } from '@/lib/schemas';
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = requireRole(request, ['GESTOR', 'COORDENADOR', 'PESQUISADOR', 'BOLSISTA']);
+    if (auth.error) return auth.error;
+
     const { id } = await params;
     const projeto = await queryOne(
       `SELECT p.*, u.nome_completo as coordenador_nome

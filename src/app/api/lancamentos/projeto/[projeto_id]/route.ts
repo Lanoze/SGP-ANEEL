@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
+import { requireAuth } from '@/lib/rbac';
 
-export async function GET(_request: Request, { params }: { params: Promise<{ projeto_id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ projeto_id: string }> }) {
   try {
+    const auth = requireAuth(request);
+    if (auth.error) return auth.error;
+
     const { projeto_id } = await params;
     const lancamentos = await query(
       `SELECT l.*, u.nome_completo as usuario_nome, rp.rubrica

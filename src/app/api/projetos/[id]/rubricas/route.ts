@@ -8,8 +8,11 @@ const updateRubricaSchema = z.object({
   valor_previsto: z.number().min(0),
 });
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = requireAuth(request);
+    if (auth.error) return auth.error;
+
     const { id } = await params;
     const rubricas = await query(
       `SELECT rp.*,

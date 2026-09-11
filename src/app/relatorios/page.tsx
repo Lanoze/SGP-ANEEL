@@ -13,6 +13,20 @@ const RUBRICA_LABELS: Record<string, string> = {
 };
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
+interface RubricaRel {
+  codigo_aneel: string; titulo: string; rubrica: string;
+  valor_previsto: string; valor_executado: string; saldo: string;
+}
+interface FolhaRel {
+  codigo_aneel: string; nome_completo: string; perfil: string;
+  nivel_academico: string; valor_mensal_calculado: string;
+  ano: number; mes: number; valor_devido: string; status: string;
+}
+interface PendenciaRel {
+  codigo_aneel: string; nome_completo: string; nivel_academico: string;
+  ano: number; mes: number; valor_devido: string;
+}
+
 export default function RelatoriosPage() {
   const { isAuthenticated, user } = useAuth();
   const router = useRouter();
@@ -27,19 +41,19 @@ export default function RelatoriosPage() {
 function RelatoriosContent() {
   const [aba, setAba] = useState<'rubricas' | 'folha' | 'pendencias'>('rubricas');
 
-  const { data: rubricasDados, isLoading: loadingRubricas } = useQuery({
+  const { data: rubricasDados, isLoading: loadingRubricas } = useQuery<RubricaRel[]>({
     queryKey: ['rel-rubricas'],
     queryFn: async () => (await api.get('/relatorios?tipo=rubricas')).data,
     enabled: aba === 'rubricas',
   });
 
-  const { data: folhaDados, isLoading: loadingFolha } = useQuery({
+  const { data: folhaDados, isLoading: loadingFolha } = useQuery<FolhaRel[]>({
     queryKey: ['rel-folha'],
     queryFn: async () => (await api.get('/relatorios?tipo=folha')).data,
     enabled: aba === 'folha',
   });
 
-  const { data: pendDados, isLoading: loadingPend } = useQuery({
+  const { data: pendDados, isLoading: loadingPend } = useQuery<PendenciaRel[]>({
     queryKey: ['rel-pendencias'],
     queryFn: async () => (await api.get('/relatorios?tipo=pendencias')).data,
     enabled: aba === 'pendencias',
@@ -78,8 +92,8 @@ function RelatoriosContent() {
         <div className="space-y-6">
           {rubricasDados?.length === 0 && <p className="text-slate-500 text-center py-8">Nenhum dado encontrado</p>}
           {(() => {
-            const projetos = new Map<string, { titulo: string; rubricas: any[] }>();
-            rubricasDados?.forEach((r: any) => {
+            const projetos = new Map<string, { titulo: string; rubricas: RubricaRel[] }>();
+            rubricasDados?.forEach((r) => {
               if (!projetos.has(r.codigo_aneel)) projetos.set(r.codigo_aneel, { titulo: r.titulo, rubricas: [] });
               projetos.get(r.codigo_aneel)!.rubricas.push(r);
             });
@@ -97,7 +111,7 @@ function RelatoriosContent() {
                     <th className="text-right px-6 py-3 font-medium text-slate-600">Saldo</th>
                   </tr></thead>
                   <tbody className="divide-y">
-                    {dados.rubricas.map((r: any) => {
+                    {dados.rubricas.map((r) => {
                       const previsto = parseFloat(r.valor_previsto);
                       const executado = parseFloat(r.valor_executado);
                       const saldo = previsto - executado;
@@ -133,7 +147,7 @@ function RelatoriosContent() {
             </tr></thead>
             <tbody className="divide-y">
               {folhaDados?.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">Nenhum dado encontrado</td></tr>}
-              {folhaDados?.map((f: any, i: number) => (
+              {folhaDados?.map((f, i) => (
                 <tr key={i} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-xs">{f.codigo_aneel}</td>
                   <td className="px-4 py-3 font-medium">{f.nome_completo}</td>
@@ -154,7 +168,7 @@ function RelatoriosContent() {
         <div className="bg-white rounded-xl shadow overflow-hidden">
           <div className="px-6 py-4 bg-amber-50 border-b">
             <p className="text-sm text-amber-800">Total de pendências: <strong>{pendDados?.length ?? 0}</strong> competências</p>
-            <p className="text-sm text-amber-800">Valor total pendente: <strong>R$ {pendDados?.reduce((s: number, p: any) => s + parseFloat(p.valor_devido), 0).toLocaleString('pt-BR') ?? '0'}</strong></p>
+            <p className="text-sm text-amber-800">Valor total pendente: <strong>R$ {pendDados?.reduce((s, p) => s + parseFloat(p.valor_devido), 0).toLocaleString('pt-BR') ?? '0'}</strong></p>
           </div>
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b"><tr>
@@ -166,7 +180,7 @@ function RelatoriosContent() {
             </tr></thead>
             <tbody className="divide-y">
               {pendDados?.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Nenhuma pendência encontrada</td></tr>}
-              {pendDados?.map((p: any, i: number) => (
+              {pendDados?.map((p, i) => (
                 <tr key={i} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-xs">{p.codigo_aneel}</td>
                   <td className="px-4 py-3 font-medium">{p.nome_completo}</td>

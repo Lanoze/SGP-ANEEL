@@ -14,6 +14,13 @@ const RUBRICA_LABELS: Record<string, string> = {
   EP: 'Equipamentos', VD: 'Viagens e Diárias', OU: 'Outros Custos',
 };
 
+interface LancamentoInput {
+  rubrica_projeto_id: string;
+  descricao: string;
+  valor: number;
+  data_despesa: string;
+}
+
 export default function ProjetoDetalhePage() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
@@ -33,7 +40,7 @@ function ProjetoDetalheContent() {
   const { data: lancamentos } = useQuery({ queryKey: ['lancamentos', selectedRubrica], queryFn: async () => (await api.get<Lancamento[]>(`/lancamentos/rubrica/${selectedRubrica}`)).data, enabled: !!selectedRubrica });
 
   const lancamentoMutation = useMutation({
-    mutationFn: async (data: any) => (await api.post('/lancamentos', data)).data,
+    mutationFn: async (data: LancamentoInput) => (await api.post('/lancamentos', data)).data,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rubricas'] }); queryClient.invalidateQueries({ queryKey: ['lancamentos'] }); setShowLancamento(false); },
   });
 
@@ -54,8 +61,8 @@ function ProjetoDetalheContent() {
             </div>
             <div className="grid gap-3">
               {rubricas?.map((r) => {
-                const previsto = parseFloat(r.valor_previsto as any);
-                const executado = parseFloat(r.valor_executado as any);
+                const previsto = parseFloat(String(r.valor_previsto));
+                const executado = parseFloat(String(r.valor_executado));
                 const pct = previsto > 0 ? (executado / previsto) * 100 : 0;
                 const cor = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-green-500';
                 return (
@@ -86,7 +93,7 @@ function ProjetoDetalheContent() {
                   {lancamentos.map((l) => (
                     <div key={l.id} className="flex justify-between items-center border-b py-2">
                       <div><p className="font-medium text-sm">{l.descricao}</p><p className="text-xs text-slate-500">{l.data_despesa} · {l.usuario_nome}</p></div>
-                      <span className="text-sm font-semibold text-red-600">- R$ {parseFloat(l.valor as any).toLocaleString('pt-BR')}</span>
+                      <span className="text-sm font-semibold text-red-600">- R$ {parseFloat(String(l.valor)).toLocaleString('pt-BR')}</span>
                     </div>
                   ))}
                 </div>
@@ -97,7 +104,7 @@ function ProjetoDetalheContent() {
             <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
               <div className="bg-white rounded-xl p-6 w-full max-w-md">
                 <h2 className="text-xl font-semibold mb-4">Novo Lançamento</h2>
-                <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); lancamentoMutation.mutate({ rubrica_projeto_id: selectedRubrica, descricao: fd.get('descricao'), valor: parseFloat(fd.get('valor') as string), data_despesa: fd.get('data_despesa') }); }} className="space-y-3">
+                <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); lancamentoMutation.mutate({ rubrica_projeto_id: selectedRubrica!, descricao: fd.get('descricao') as string, valor: parseFloat(fd.get('valor') as string), data_despesa: fd.get('data_despesa') as string }); }} className="space-y-3">
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label><input name="descricao" required className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label><input name="valor" type="number" step="0.01" min="0.01" required className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Data</label><input name="data_despesa" type="date" required className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>

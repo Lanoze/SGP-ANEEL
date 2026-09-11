@@ -21,7 +21,7 @@ export default function FolhaPage() {
 function FolhaContent() {
   const { data: projetos, isLoading } = useQuery<Projeto[]>({
     queryKey: ['projetos'],
-    queryFn: async () => { const r = await api.get('/api/projetos'); return r.data; },
+    queryFn: async () => { const r = await api.get('/projetos'); return r.data; },
   });
 
   if (isLoading) return <div className="p-8 text-center">Carregando...</div>;

@@ -4,6 +4,23 @@ import { createAuditLog } from '@/lib/audit';
 import { requireRole } from '@/lib/rbac';
 import { createProjetoSchema } from '@/lib/schemas';
 
+export async function GET(request: Request) {
+  try {
+    const auth = requireRole(request, ['GESTOR', 'COORDENADOR', 'PESQUISADOR', 'BOLSISTA']);
+    if (auth.error) return auth.error;
+
+    const projetos = await query(
+      `SELECT p.*, u.nome_completo as coordenador_nome
+       FROM projetos p LEFT JOIN usuarios u ON p.coordenador_id = u.id
+       ORDER BY p.criado_em DESC`
+    );
+    return NextResponse.json(projetos);
+  } catch (error) {
+    console.error('Get projetos error:', error);
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const auth = requireRole(request, ['GESTOR']);
@@ -42,20 +59,6 @@ export async function POST(request: Request) {
     return NextResponse.json(projeto, { status: 201 });
   } catch (error) {
     console.error('Create projeto error:', error);
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
-  }
-}
-
-export async function GET() {
-  try {
-    const projetos = await query(
-      `SELECT p.*, u.nome_completo as coordenador_nome
-       FROM projetos p LEFT JOIN usuarios u ON p.coordenador_id = u.id
-       ORDER BY p.criado_em DESC`
-    );
-    return NextResponse.json(projetos);
-  } catch (error) {
-    console.error('Get projetos error:', error);
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }
 }

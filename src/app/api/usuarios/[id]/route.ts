@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import { queryOne } from '@/lib/db';
+import { requireAuth } from '@/lib/rbac';
 import type { Usuario } from '@/types';
 
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = requireAuth(request);
+    if (auth.error) return auth.error;
+
     const { id } = await params;
     const user = await queryOne<Usuario>(
       'SELECT id, nome_completo, cpf, email, perfil, ativo, criado_em FROM usuarios WHERE id = $1',

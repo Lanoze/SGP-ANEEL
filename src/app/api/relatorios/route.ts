@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { requireAuth } from '@/lib/rbac';
+import { requireAuth, requireMinRole } from '@/lib/rbac';
 
 export async function GET(request: Request) {
   try {
-    const auth = requireAuth(request);
+    const auth = requireMinRole(request, 'COORDENADOR');
     if (auth.error) return auth.error;
 
     const url = new URL(request.url);

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query, queryOne, pool } from '@/lib/db';
+import { createAuditLog } from '@/lib/audit';
 
 export async function POST(request: Request) {
   try {
@@ -12,6 +13,12 @@ export async function POST(request: Request) {
     const { verifyToken } = await import('@/lib/auth');
     const payload = token ? verifyToken(token) : null;
     const usuario_id = payload?.userId;
+
+    if (!usuario_id) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+
+    if (payload?.perfil !== 'GESTOR' && payload?.perfil !== 'COORDENADOR') {
+      return NextResponse.json({ error: 'Apenas gestores e coordenadores podem fazer baixa em lote' }, { status: 403 });
+    }
 
     const client = await pool.connect();
     try {
@@ -40,6 +47,8 @@ export async function POST(request: Request) {
 
       if (!rubrica || rubrica.saldo < totalFolha) { await client.query('ROLLBACK'); return NextResponse.json({ error: 'Saldo RH insuficiente' }, { status: 400 }); }
 
+      const saldoAnterior = rubrica.saldo;
+
       await client.query(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, CURRENT_DATE, $4)`,
@@ -52,6 +61,17 @@ export async function POST(request: Request) {
           [usuario_id, comp.id]
         );
       }
+
+      const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+      await createAuditLog({
+        usuario_id,
+        acao: 'BAIXA_LOTE',
+        tabela_origem: 'competencias_folha',
+        registro_id: competencias[0].id,
+        estado_anterior: { competencias_pendentes: competencias.length, saldo_rh: saldoAnterior },
+        estado_posterior: { competencias_liquidadas: competencias.length, total: totalFolha, saldo_rh: saldoAnterior - totalFolha },
+        endereco_ip: ip,
+      });
 
       await client.query('COMMIT');
       return NextResponse.json({ message: 'Baixa em lote realizada', competencias_liquidadas: competencias.length, total: totalFolha });

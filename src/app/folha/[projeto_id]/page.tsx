@@ -21,8 +21,12 @@ export default function FolhaPage() {
 
 function FolhaContent() {
   const { projeto_id } = useParams<{ projeto_id: string }>();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showAlocacao, setShowAlocacao] = useState(false);
+  const [showLoteModal, setShowLoteModal] = useState(false);
+  const [loteMes, setLoteMes] = useState('');
+  const [loteAno, setLoteAno] = useState('2026');
 
   const { data: rubricas } = useQuery({ queryKey: ['rubricas', projeto_id], queryFn: async () => (await api.get<RubricaProjeto[]>(`/projetos/${projeto_id}/rubricas`)).data, enabled: !!projeto_id });
   const { data: folha } = useQuery({ queryKey: ['folha', projeto_id], queryFn: async () => (await api.get<AlocacaoRH[]>(`/folha/folha/${projeto_id}`)).data, enabled: !!projeto_id });
@@ -36,21 +40,43 @@ function FolhaContent() {
     mutationFn: async (competencia_id: string) => (await api.post('/folha/baixar-individual', { competencia_id })).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['folha'] }),
   });
+  const baixaLoteMutation = useMutation({
+    mutationFn: async () => (await api.post('/folha/baixar-lote', { projeto_id, ano: parseInt(loteAno), mes: parseInt(loteMes) })).data,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['folha'] }); setShowLoteModal(false); },
+  });
 
   const rhRubrica = rubricas?.find((r) => r.rubrica === 'RH');
   const saldoRH = rhRubrica ? parseFloat(rhRubrica.valor_previsto as any) - parseFloat(rhRubrica.valor_executado as any) : 0;
 
+  const pendentesCount = folha?.reduce((acc, a) => {
+    return acc + (a.competencias?.filter((c) => c.status === 'PENDENTE').length ?? 0);
+  }, 0) ?? 0;
+
+  const pendentesTotal = folha?.reduce((acc, a) => {
+    return acc + (a.competencias?.filter((c) => c.status === 'PENDENTE').reduce((s, c) => s + parseFloat(String(c.valor_devido)), 0) ?? 0);
+  }, 0) ?? 0;
+
+  const canBaixarLote = user?.perfil === 'GESTOR' || user?.perfil === 'COORDENADOR';
+
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <div><h1 className="text-2xl font-bold text-slate-900">Folha de Pagamento</h1><p className="text-slate-500 text-sm">Saldo RH disponível: R$ {saldoRH.toLocaleString('pt-BR')}</p></div>
-        <button onClick={() => setShowAlocacao(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">+ Alocar Colaborador</button>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Folha de Pagamento</h1>
+          <p className="text-slate-500 text-sm">Saldo RH disponível: R$ {saldoRH.toLocaleString('pt-BR')} · Pendências: {pendentesCount} ({pendentesTotal > 0 ? `R$ ${pendentesTotal.toLocaleString('pt-BR')}` : '-'})</p>
+        </div>
+        <div className="flex gap-2">
+          {canBaixarLote && pendentesCount > 0 && (
+            <button onClick={() => setShowLoteModal(true)} className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Baixar em Lote</button>
+          )}
+          <button onClick={() => setShowAlocacao(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">+ Alocar Colaborador</button>
+        </div>
       </div>
       <div className="space-y-4">
         {folha?.map((a) => (
           <div key={a.id} className="bg-white rounded-xl shadow p-4">
             <div className="flex justify-between items-start mb-3">
-              <div><h3 className="font-semibold">{a.nome_completo}</h3><p className="text-sm text-slate-500">{a.papel_projeto} · {a.nivel_academico} · CPF: {a.cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')}</p></div>
+              <div><h3 className="font-semibold">{a.nome_completo}</h3><p className="text-sm text-slate-500">{a.papel_projeto} · {a.nivel_academico} · CPF: {a.cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '***.$2.$3-$4')}</p></div>
               <div className="text-right"><p className="text-sm text-slate-500">Nominal: R$ {parseFloat(a.valor_nominal_capes as any).toLocaleString('pt-BR')}</p><p className="text-sm font-semibold">Complemento: {a.nivel_complemento}/3</p><p className="text-lg font-bold text-green-700">R$ {parseFloat(a.valor_mensal_calculado as any).toLocaleString('pt-BR')}/mês</p></div>
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -65,6 +91,44 @@ function FolhaContent() {
           </div>
         ))}
       </div>
+
+      {showLoteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-xl font-semibold mb-4">Baixa em Lote</h2>
+            <p className="text-sm text-slate-600 mb-4">Total de pendências: <strong>{pendentesCount}</strong> competências</p>
+            <p className="text-sm text-slate-600 mb-4">Valor total: <strong>R$ {pendentesTotal.toLocaleString('pt-BR')}</strong></p>
+            <p className="text-sm text-slate-600 mb-4">Saldo RH: <strong>R$ {saldoRH.toLocaleString('pt-BR')}</strong></p>
+            {pendentesTotal > saldoRH && <p className="text-sm text-red-600 mb-4">⚠️ Saldo RH insuficiente para esta operação</p>}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Mês</label>
+                <select value={loteMes} onChange={(e) => setLoteMes(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                  <option value="">Selecione...</option>
+                  {MESES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Ano</label>
+                <select value={loteAno} onChange={(e) => setLoteAno(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+                  <option value="2025">2025</option>
+                  <option value="2026">2026</option>
+                  <option value="2027">2027</option>
+                  <option value="2028">2028</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button type="button" onClick={() => setShowLoteModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
+              <button onClick={() => baixaLoteMutation.mutate()} disabled={!loteMes || pendentesTotal > saldoRH || baixaLoteMutation.isPending}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-50">
+                {baixaLoteMutation.isPending ? 'Processando...' : 'Confirmar Baixa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showAlocacao && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md">

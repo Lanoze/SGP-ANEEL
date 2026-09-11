@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryOne, pool } from '@/lib/db';
+import { createAuditLog } from '@/lib/audit';
 
 export async function POST(request: Request) {
   try {
@@ -12,6 +13,8 @@ export async function POST(request: Request) {
     const { verifyToken } = await import('@/lib/auth');
     const payload = token ? verifyToken(token) : null;
     const usuario_id = payload?.userId;
+
+    if (!usuario_id) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
 
     const client = await pool.connect();
     try {
@@ -37,6 +40,8 @@ export async function POST(request: Request) {
 
       if (!rubrica || rubrica.saldo < competencia.valor_devido) { await client.query('ROLLBACK'); return NextResponse.json({ error: 'Saldo RH insuficiente' }, { status: 400 }); }
 
+      const saldoAnterior = rubrica.saldo;
+
       await client.query(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, CURRENT_DATE, $4)`,
@@ -47,6 +52,17 @@ export async function POST(request: Request) {
         `UPDATE competencias_folha SET status = 'PAGO', data_baixa = CURRENT_TIMESTAMP, usuario_baixa_id = $1 WHERE id = $2`,
         [usuario_id, competencia_id]
       );
+
+      const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+      await createAuditLog({
+        usuario_id,
+        acao: 'BAIXA_INDIVIDUAL',
+        tabela_origem: 'competencias_folha',
+        registro_id: competencia_id,
+        estado_anterior: { status: 'PENDENTE', valor: competencia.valor_devido, saldo_rh: saldoAnterior },
+        estado_posterior: { status: 'PAGO', saldo_rh: saldoAnterior - competencia.valor_devido },
+        endereco_ip: ip,
+      });
 
       await client.query('COMMIT');
       return NextResponse.json({ message: 'Liquidação realizada com sucesso' });

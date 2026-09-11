@@ -5,18 +5,27 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
-const navItems = [
-  { to: '/', label: 'Dashboard', icon: '📊' },
-  { to: '/projetos', label: 'Projetos', icon: '📁' },
-  { to: '/folha', label: 'Folha', icon: '💰' },
-  { to: '/auditoria', label: 'Auditoria', icon: '🔍' },
+const allNavItems = [
+  { to: '/', label: 'Dashboard', icon: '📊', minPerfil: 'BOLSISTA' },
+  { to: '/projetos', label: 'Projetos', icon: '📁', minPerfil: 'BOLSISTA' },
+  { to: '/folha', label: 'Folha', icon: '💰', minPerfil: 'COORDENADOR' },
+  { to: '/relatorios', label: 'Relatórios', icon: '📈', minPerfil: 'COORDENADOR' },
+  { to: '/auditoria', label: 'Auditoria', icon: '🔍', minPerfil: 'GESTOR' },
 ];
+
+const ROLE_LEVELS: Record<string, number> = { GESTOR: 4, COORDENADOR: 3, PESQUISADOR: 2, BOLSISTA: 1 };
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const navItems = allNavItems.filter((item) => {
+    const userLevel = ROLE_LEVELS[user?.perfil ?? 'BOLSISTA'] ?? 0;
+    const requiredLevel = ROLE_LEVELS[item.minPerfil] ?? 0;
+    return userLevel >= requiredLevel;
+  });
 
   function handleLogout() {
     logout();

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { queryOne, pool } from '@/lib/db';
 import { createAuditLog } from '@/lib/audit';
+import { requireAuth, canAccessContratosRH } from '@/lib/rbac';
 import crypto from 'crypto';
 
 const MAGIC_BYTES: Record<string, number[][]> = {
@@ -27,14 +28,28 @@ function detectarMimeType(buffer: Buffer, extensao: string): string {
   return MIME_EXTENSIONS[extensao] || 'application/octet-stream';
 }
 
+function validarMagicBytes(buffer: Buffer, extensao: string): { valido: boolean; esperado?: string; detectado?: string } {
+  const mimeFromExt = MIME_EXTENSIONS[extensao];
+  if (!mimeFromExt) return { valido: true };
+
+  const signatures = MAGIC_BYTES[mimeFromExt];
+  if (!signatures) return { valido: true };
+
+  for (const sig of signatures) {
+    if (buffer.subarray(0, sig.length).equals(Buffer.from(sig))) return { valido: true };
+  }
+
+  const detected = detectarMimeType(buffer, extensao);
+  return { valido: false, esperado: mimeFromExt, detectado: detected };
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ projeto_id: string }> }) {
   try {
     const { projeto_id } = await params;
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.split(' ')[1];
-    const { verifyToken } = await import('@/lib/auth');
-    const payload = token ? verifyToken(token) : null;
-    const usuario_id = payload?.userId;
+
+    const auth = requireAuth(request);
+    if (auth.error) return auth.error;
+    const { userId: usuario_id, perfil } = auth.user;
 
     const formData = await request.formData();
     const arquivo = formData.get('arquivo') as File | null;
@@ -43,9 +58,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     if (!arquivo) return NextResponse.json({ error: 'Nenhum arquivo enviado' }, { status: 400 });
     if (!categoria) return NextResponse.json({ error: 'Categoria obrigatória' }, { status: 400 });
 
+    if (categoria === 'CONTRATO_RH' && !canAccessContratosRH(perfil)) {
+      return NextResponse.json({ error: 'Acesso negado: contratos de RH restritos a gestores e coordenadores' }, { status: 403 });
+    }
+
     const buffer = Buffer.from(await arquivo.arrayBuffer());
-    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
     const extensao = '.' + arquivo.name.split('.').pop()?.toLowerCase();
+
+    const validacao = validarMagicBytes(buffer, extensao);
+    if (!validacao.valido) {
+      return NextResponse.json({ error: `Arquivo inválido: assinatura binária não confere. Esperado ${validacao.esperado}, detectado ${validacao.detectado}` }, { status: 422 });
+    }
+
+    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
     const mimeType = detectarMimeType(buffer, extensao);
 
     const client = await pool.connect();
@@ -61,7 +86,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
 
       await client.query('INSERT INTO documentos_payload (documento_id, conteudo_binario) VALUES ($1, $2)', [documentoId, buffer]);
 
-      await createAuditLog({ usuario_id, acao: 'UPLOAD', tabela_origem: 'documentos_metadados', registro_id: documentoId, estado_posterior: { nome_arquivo: arquivo.name, categoria, hash_sha256: hash } });
+      const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+      await createAuditLog({ usuario_id, acao: 'UPLOAD', tabela_origem: 'documentos_metadados', registro_id: documentoId, estado_posterior: { nome_arquivo: arquivo.name, categoria, hash_sha256: hash }, endereco_ip: ip });
 
       await client.query('COMMIT');
       return NextResponse.json({ id: documentoId, nome_arquivo: arquivo.name, extensao, mime_type: mimeType, tamanho_bytes: arquivo.size, hash_sha256: hash, categoria }, { status: 201 });

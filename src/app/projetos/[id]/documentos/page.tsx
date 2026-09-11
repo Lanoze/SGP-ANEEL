@@ -13,8 +13,10 @@ const CATEGORIA_LABELS: Record<string, string> = { GERAL: 'Geral', COMPROVANTE_L
 const CATEGORIA_CORES: Record<string, string> = { GERAL: 'bg-slate-100 text-slate-700', COMPROVANTE_LANCAMENTO: 'bg-blue-100 text-blue-700', RELATORIO_TECNICO: 'bg-purple-100 text-purple-700', CONTRATO_RH: 'bg-red-100 text-red-700' };
 function formatarTamanho(bytes: number): string { if (bytes < 1024) return `${bytes} B`; if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`; return `${(bytes / (1024 * 1024)).toFixed(1)} MB`; }
 
+const CAN_ACCESS_CONTRATOS = ['GESTOR', 'COORDENADOR'];
+
 export default function DocumentosPage() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const router = useRouter();
   useEffect(() => { if (!isAuthenticated) router.push('/login'); }, [isAuthenticated, router]);
   if (!isAuthenticated) return null;
@@ -23,9 +25,16 @@ export default function DocumentosPage() {
 
 function DocumentosContent() {
   const { id: projetoId } = useParams<{ id: string }>();
+  const { user } = useAuth();
   const [filtro, setFiltro] = useState('');
   const [showUpload, setShowUpload] = useState(false);
   const queryClient = useQueryClient();
+  const canSeeContratos = CAN_ACCESS_CONTRATOS.includes(user?.perfil ?? '');
+
+  const categoriasVisiveis = Object.entries(CATEGORIA_LABELS).filter(([key]) => {
+    if (key === 'CONTRATO_RH' && !canSeeContratos) return false;
+    return true;
+  });
 
   const { data: documentos, isLoading } = useQuery({
     queryKey: ['documentos', projetoId, filtro],
@@ -48,7 +57,7 @@ function DocumentosContent() {
       {showUpload && <div className="mb-6"><UploadDocumento projetoId={projetoId!} onSuccess={() => setShowUpload(false)} /></div>}
       <div className="flex gap-2 mb-4 flex-wrap">
         <button onClick={() => setFiltro('')} className={`px-3 py-1.5 rounded-lg text-sm ${!filtro ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Todos</button>
-        {Object.entries(CATEGORIA_LABELS).map(([val, label]) => (
+        {categoriasVisiveis.map(([val, label]) => (
           <button key={val} onClick={() => setFiltro(val)} className={`px-3 py-1.5 rounded-lg text-sm ${filtro === val ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>{label}</button>
         ))}
       </div>
@@ -75,7 +84,9 @@ function DocumentosContent() {
                 <td className="px-4 py-3 text-slate-500">{new Date(doc.criado_em).toLocaleDateString('pt-BR')}</td>
                 <td className="px-4 py-3 text-right">
                   <button onClick={() => handleDownload(doc)} className="text-blue-600 hover:text-blue-800 text-sm mr-2">Download</button>
-                  <button onClick={() => { if (confirm('Remover este documento?')) deleteMutation.mutate(doc.id); }} className="text-red-500 hover:text-red-700 text-sm">Remover</button>
+                  {canSeeContratos && (
+                    <button onClick={() => { if (confirm('Remover este documento?')) deleteMutation.mutate(doc.id); }} className="text-red-500 hover:text-red-700 text-sm">Remover</button>
+                  )}
                 </td>
               </tr>
             ))}

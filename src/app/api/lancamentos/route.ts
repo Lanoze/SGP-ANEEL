@@ -1,20 +1,19 @@
 import { NextResponse } from 'next/server';
-import { query, queryOne, pool } from '@/lib/db';
+import { queryOne, pool } from '@/lib/db';
+import { requireRole } from '@/lib/rbac';
+import { createLancamentoSchema } from '@/lib/schemas';
 
 export async function POST(request: Request) {
   try {
+    const auth = requireRole(request, ['GESTOR', 'COORDENADOR']);
+    if (auth.error) return auth.error;
+
     const body = await request.json();
-    const { rubrica_projeto_id, descricao, valor, data_despesa } = body;
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.split(' ')[1];
-
-    const { verifyToken } = await import('@/lib/auth');
-    const payload = token ? verifyToken(token) : null;
-    const usuario_id = payload?.userId;
-
-    if (!rubrica_projeto_id || !descricao || !valor || !data_despesa) {
-      return NextResponse.json({ error: 'Dados obrigatórios faltando' }, { status: 400 });
+    const parsed = createLancamentoSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
+    const { rubrica_projeto_id, descricao, valor, data_despesa } = parsed.data;
 
     const client = await pool.connect();
     try {
@@ -34,7 +33,7 @@ export async function POST(request: Request) {
       const lancamento = await queryOne(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [rubrica_projeto_id, descricao, valor, data_despesa, usuario_id]
+        [rubrica_projeto_id, descricao, valor, data_despesa, auth.user.userId]
       );
 
       await client.query('COMMIT');

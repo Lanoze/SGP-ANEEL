@@ -1,24 +1,20 @@
 import { NextResponse } from 'next/server';
 import { query, queryOne, pool } from '@/lib/db';
 import { createAuditLog } from '@/lib/audit';
+import { requireRole } from '@/lib/rbac';
+import { baixaLoteSchema } from '@/lib/schemas';
 
 export async function POST(request: Request) {
   try {
+    const auth = requireRole(request, ['GESTOR', 'COORDENADOR']);
+    if (auth.error) return auth.error;
+
     const body = await request.json();
-    const { projeto_id, ano, mes } = body;
-    if (!projeto_id || !ano || !mes) return NextResponse.json({ error: 'Dados obrigatórios faltando' }, { status: 400 });
-
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.split(' ')[1];
-    const { verifyToken } = await import('@/lib/auth');
-    const payload = token ? verifyToken(token) : null;
-    const usuario_id = payload?.userId;
-
-    if (!usuario_id) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-
-    if (payload?.perfil !== 'GESTOR' && payload?.perfil !== 'COORDENADOR') {
-      return NextResponse.json({ error: 'Apenas gestores e coordenadores podem fazer baixa em lote' }, { status: 403 });
+    const parsed = baixaLoteSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
+    const { projeto_id, ano, mes } = parsed.data;
 
     const client = await pool.connect();
     try {
@@ -52,19 +48,19 @@ export async function POST(request: Request) {
       await client.query(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, CURRENT_DATE, $4)`,
-        [rubrica_projeto_id, `Baixa em lote folha - ${mes}/${ano}`, totalFolha, usuario_id]
+        [rubrica_projeto_id, `Baixa em lote folha - ${mes}/${ano}`, totalFolha, auth.user.userId]
       );
 
       for (const comp of competencias) {
         await client.query(
           `UPDATE competencias_folha SET status = 'PAGO', data_baixa = CURRENT_TIMESTAMP, usuario_baixa_id = $1 WHERE id = $2`,
-          [usuario_id, comp.id]
+          [auth.user.userId, comp.id]
         );
       }
 
-      const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+      const ip = request.headers.get('x-forwarded-for') || 'unknown';
       await createAuditLog({
-        usuario_id,
+        usuario_id: auth.user.userId,
         acao: 'BAIXA_LOTE',
         tabela_origem: 'competencias_folha',
         registro_id: competencias[0].id,

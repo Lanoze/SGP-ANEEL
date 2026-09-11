@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
-import { query, queryOne, pool } from '@/lib/db';
+import { query, queryOne } from '@/lib/db';
+import { requireRole } from '@/lib/rbac';
+import { createAlocacaoSchema } from '@/lib/schemas';
 
 function calcularValorMensal(nominal: number, nivel: number): number {
   return nominal * (1 + nivel / 3);
@@ -19,12 +21,15 @@ function gerarMeses(dataInicio: string, dataFim: string): { ano: number; mes: nu
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { projeto_id, usuario_id, papel_projeto, nivel_academico, valor_nominal_capes, nivel_complemento } = body;
+    const auth = requireRole(request, ['GESTOR', 'COORDENADOR']);
+    if (auth.error) return auth.error;
 
-    if (!projeto_id || !usuario_id || !papel_projeto || !nivel_academico || !valor_nominal_capes || nivel_complemento === undefined) {
-      return NextResponse.json({ error: 'Dados obrigatórios faltando' }, { status: 400 });
+    const body = await request.json();
+    const parsed = createAlocacaoSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
+    const { projeto_id, usuario_id, papel_projeto, nivel_academico, valor_nominal_capes, nivel_complemento } = parsed.data;
 
     const existing = await queryOne('SELECT id FROM alocacao_rh WHERE projeto_id = $1 AND usuario_id = $2', [projeto_id, usuario_id]);
     if (existing) return NextResponse.json({ error: 'Usuário já alocado neste projeto' }, { status: 409 });

@@ -1,15 +1,20 @@
 import { NextResponse } from 'next/server';
 import { query, queryOne } from '@/lib/db';
 import { createAuditLog } from '@/lib/audit';
+import { requireRole } from '@/lib/rbac';
+import { createProjetoSchema } from '@/lib/schemas';
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { codigo_aneel, titulo, descricao, coordenador_id, data_inicio, data_fim } = body;
+    const auth = requireRole(request, ['GESTOR']);
+    if (auth.error) return auth.error;
 
-    if (!codigo_aneel || !titulo || !coordenador_id || !data_inicio || !data_fim) {
-      return NextResponse.json({ error: 'Dados obrigatórios faltando' }, { status: 400 });
+    const body = await request.json();
+    const parsed = createProjetoSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
+    const { codigo_aneel, titulo, descricao, coordenador_id, data_inicio, data_fim } = parsed.data;
 
     if (new Date(data_fim) <= new Date(data_inicio)) {
       return NextResponse.json({ error: 'Data fim deve ser posterior à data início' }, { status: 400 });
@@ -31,7 +36,8 @@ export async function POST(request: Request) {
       await query('INSERT INTO rubricas_projeto (projeto_id, rubrica, valor_previsto) VALUES ($1, $2, 0)', [projeto!.id, rubrica]);
     }
 
-    await createAuditLog({ acao: 'CREATE', tabela_origem: 'projetos', registro_id: String(projeto!.id), estado_posterior: { codigo_aneel, titulo } });
+    const ip = request.headers.get('x-forwarded-for') || 'unknown';
+    await createAuditLog({ usuario_id: auth.user.userId, acao: 'CREATE', tabela_origem: 'projetos', registro_id: String(projeto!.id), estado_posterior: { codigo_aneel, titulo }, endereco_ip: ip });
 
     return NextResponse.json(projeto, { status: 201 });
   } catch (error) {

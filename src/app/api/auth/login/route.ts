@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import { authenticateUser } from '@/lib/auth';
+import { loginSchema } from '@/lib/schemas';
 
 export async function POST(request: Request) {
   try {
-    const { email, senha } = await request.json();
-    if (!email || !senha) {
-      return NextResponse.json({ error: 'Email e senha obrigatórios' }, { status: 400 });
+    const body = await request.json();
+    const parsed = loginSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
 
-    const result = await authenticateUser(email, senha);
+    const result = await authenticateUser(parsed.data.email, parsed.data.senha);
     if (!result) {
       return NextResponse.json({ error: 'Credenciais inválidas' }, { status: 401 });
     }

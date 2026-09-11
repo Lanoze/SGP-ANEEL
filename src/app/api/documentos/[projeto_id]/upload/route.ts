@@ -31,14 +31,11 @@ function detectarMimeType(buffer: Buffer, extensao: string): string {
 function validarMagicBytes(buffer: Buffer, extensao: string): { valido: boolean; esperado?: string; detectado?: string } {
   const mimeFromExt = MIME_EXTENSIONS[extensao];
   if (!mimeFromExt) return { valido: true };
-
   const signatures = MAGIC_BYTES[mimeFromExt];
   if (!signatures) return { valido: true };
-
   for (const sig of signatures) {
     if (buffer.subarray(0, sig.length).equals(Buffer.from(sig))) return { valido: true };
   }
-
   const detected = detectarMimeType(buffer, extensao);
   return { valido: false, esperado: mimeFromExt, detectado: detected };
 }
@@ -50,6 +47,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     const auth = requireAuth(request);
     if (auth.error) return auth.error;
     const { userId: usuario_id, perfil } = auth.user;
+
+    if (perfil === 'BOLSISTA') {
+      return NextResponse.json({ error: 'Acesso negado: bolsistas não podem enviar documentos' }, { status: 403 });
+    }
 
     const formData = await request.formData();
     const arquivo = formData.get('arquivo') as File | null;

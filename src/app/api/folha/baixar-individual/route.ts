@@ -1,20 +1,20 @@
 import { NextResponse } from 'next/server';
 import { queryOne, pool } from '@/lib/db';
 import { createAuditLog } from '@/lib/audit';
+import { requireRole } from '@/lib/rbac';
+import { baixaCompetenciaSchema } from '@/lib/schemas';
 
 export async function POST(request: Request) {
   try {
+    const auth = requireRole(request, ['GESTOR', 'COORDENADOR']);
+    if (auth.error) return auth.error;
+
     const body = await request.json();
-    const { competencia_id } = body;
-    if (!competencia_id) return NextResponse.json({ error: 'competencia_id obrigatório' }, { status: 400 });
-
-    const authHeader = request.headers.get('authorization');
-    const token = authHeader?.split(' ')[1];
-    const { verifyToken } = await import('@/lib/auth');
-    const payload = token ? verifyToken(token) : null;
-    const usuario_id = payload?.userId;
-
-    if (!usuario_id) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    const parsed = baixaCompetenciaSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+    }
+    const { competencia_id } = parsed.data;
 
     const client = await pool.connect();
     try {
@@ -45,17 +45,17 @@ export async function POST(request: Request) {
       await client.query(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, CURRENT_DATE, $4)`,
-        [competencia.rubrica_projeto_id, `Baixa folha - competência ${competencia.mes}/${competencia.ano}`, competencia.valor_devido, usuario_id]
+        [competencia.rubrica_projeto_id, `Baixa folha - competência ${competencia.mes}/${competencia.ano}`, competencia.valor_devido, auth.user.userId]
       );
 
       await client.query(
         `UPDATE competencias_folha SET status = 'PAGO', data_baixa = CURRENT_TIMESTAMP, usuario_baixa_id = $1 WHERE id = $2`,
-        [usuario_id, competencia_id]
+        [auth.user.userId, competencia_id]
       );
 
-      const ip = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+      const ip = request.headers.get('x-forwarded-for') || 'unknown';
       await createAuditLog({
-        usuario_id,
+        usuario_id: auth.user.userId,
         acao: 'BAIXA_INDIVIDUAL',
         tabela_origem: 'competencias_folha',
         registro_id: competencia_id,

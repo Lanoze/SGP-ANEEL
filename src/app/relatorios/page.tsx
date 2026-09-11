@@ -49,9 +49,24 @@ function RelatoriosContent() {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold text-slate-900 mb-6">Relatórios Gerenciais</h1>
+      <style>{`
+        @media print {
+          aside, nav, button, .no-print { display: none !important; }
+          main { overflow: visible !important; }
+          .print-container { padding: 0 !important; }
+          .print-container > div { box-shadow: none !important; border: 1px solid #ddd !important; }
+          table { font-size: 11px !important; }
+          th, td { padding: 4px 8px !important; }
+          body { font-size: 12px !important; }
+          @page { margin: 1.5cm; size: landscape; }
+        }
+      `}</style>
+      <div className="flex justify-between items-center mb-6 no-print">
+        <h1 className="text-2xl font-bold text-slate-900">Relatórios Gerenciais</h1>
+        <button onClick={() => window.print()} className="px-4 py-2 bg-slate-700 text-white rounded-lg text-sm hover:bg-slate-800">Imprimir / PDF</button>
+      </div>
 
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6 no-print">
         <button onClick={() => setAba('rubricas')} className={`px-4 py-2 rounded-lg text-sm font-medium ${aba === 'rubricas' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Relatório ANEEL por Rubricas</button>
         <button onClick={() => setAba('folha')} className={`px-4 py-2 rounded-lg text-sm font-medium ${aba === 'folha' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Extrato Mensal da Folha</button>
         <button onClick={() => setAba('pendencias')} className={`px-4 py-2 rounded-lg text-sm font-medium ${aba === 'pendencias' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Relatório de Pendências</button>

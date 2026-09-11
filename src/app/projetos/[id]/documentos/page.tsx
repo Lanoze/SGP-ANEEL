@@ -14,6 +14,7 @@ const CATEGORIA_CORES: Record<string, string> = { GERAL: 'bg-slate-100 text-slat
 function formatarTamanho(bytes: number): string { if (bytes < 1024) return `${bytes} B`; if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`; return `${(bytes / (1024 * 1024)).toFixed(1)} MB`; }
 
 const CAN_ACCESS_CONTRATOS = ['GESTOR', 'COORDENADOR'];
+const PREVIEWABLE = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
 
 export default function DocumentosPage() {
   const { isAuthenticated } = useAuth();
@@ -28,6 +29,7 @@ function DocumentosContent() {
   const { user } = useAuth();
   const [filtro, setFiltro] = useState('');
   const [showUpload, setShowUpload] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<DocumentoMetadados | null>(null);
   const queryClient = useQueryClient();
   const canSeeContratos = CAN_ACCESS_CONTRATOS.includes(user?.perfil ?? '');
 
@@ -36,15 +38,17 @@ function DocumentosContent() {
     return true;
   });
 
-  const { data: documentos, isLoading } = useQuery({
+  const { data: documentos, isLoading } = useQuery<DocumentoMetadados[]>({
     queryKey: ['documentos', projetoId, filtro],
-    queryFn: async () => { const params = filtro ? `?categoria=${filtro}` : ''; return (await api.get<DocumentoMetadados[]>(`/documentos/${projetoId}${params}`)).data; },
+    queryFn: async () => { const params = filtro ? `?categoria=${filtro}` : ''; return (await api.get(`/documentos/${projetoId}${params}`)).data; },
     enabled: !!projetoId,
   });
 
   const deleteMutation = useMutation({ mutationFn: async (id: string) => api.delete(`/documentos/${id}`), onSuccess: () => queryClient.invalidateQueries({ queryKey: ['documentos', projetoId] }) });
 
   function handleDownload(doc: DocumentoMetadados) { const link = window.document.createElement('a'); link.href = `/api/documentos/download/${doc.id}`; link.download = doc.nome_arquivo; link.click(); }
+
+  function canPreview(doc: DocumentoMetadados) { return PREVIEWABLE.includes(doc.extensao.replace('.', '').toLowerCase()); }
 
   if (isLoading) return <div className="p-6 text-center text-slate-500">Carregando...</div>;
 
@@ -83,6 +87,7 @@ function DocumentosContent() {
                 <td className="px-4 py-3 text-slate-500">{doc.usuario_nome}</td>
                 <td className="px-4 py-3 text-slate-500">{new Date(doc.criado_em).toLocaleDateString('pt-BR')}</td>
                 <td className="px-4 py-3 text-right">
+                  {canPreview(doc) && <button onClick={() => setPreviewDoc(doc)} className="text-emerald-600 hover:text-emerald-800 text-sm mr-2">Visualizar</button>}
                   <button onClick={() => handleDownload(doc)} className="text-blue-600 hover:text-blue-800 text-sm mr-2">Download</button>
                   {canSeeContratos && (
                     <button onClick={() => { if (confirm('Remover este documento?')) deleteMutation.mutate(doc.id); }} className="text-red-500 hover:text-red-700 text-sm">Remover</button>
@@ -92,6 +97,33 @@ function DocumentosContent() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {previewDoc && <PreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />}
+    </div>
+  );
+}
+
+function PreviewModal({ doc, onClose }: { doc: DocumentoMetadados; onClose: () => void }) {
+  const isImage = ['.png', '.jpg', '.jpeg', '.gif', '.webp'].includes(doc.extensao.toLowerCase());
+  const isPdf = doc.extensao.toLowerCase() === '.pdf';
+  const url = `/api/documentos/download/${doc.id}`;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+        <div className="flex justify-between items-center px-4 py-3 border-b">
+          <h3 className="font-semibold text-sm truncate">{doc.nome_arquivo}</h3>
+          <div className="flex gap-2">
+            <a href={url} download={doc.nome_arquivo} className="text-blue-600 hover:text-blue-800 text-sm">Download</a>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg ml-2">✕</button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto p-4 flex items-center justify-center bg-slate-50">
+          {isPdf && <iframe src={url} className="w-full h-full min-h-[70vh] border rounded" title={doc.nome_arquivo} />}
+          {isImage && <img src={url} alt={doc.nome_arquivo} className="max-w-full max-h-[80vh] object-contain rounded shadow" />}
+          {!isPdf && !isImage && <p className="text-slate-500 text-sm">Pré-visualização não disponível para este tipo de arquivo. Baixe o documento para visualizar.</p>}
+        </div>
       </div>
     </div>
   );

@@ -47,3 +47,13 @@ export const baixaLoteSchema = z.object({
   ano: z.number().int().min(2020),
   mes: z.number().int().min(1).max(12),
 });
+
+export const changePasswordSchema = z.object({
+  senha_atual: z.string().min(6),
+  nova_senha: z.string().min(6, 'Nova senha deve ter no mínimo 6 caracteres'),
+});
+
+export const resetPasswordSchema = z.object({
+  usuario_id: z.string().uuid(),
+  nova_senha: z.string().min(6, 'Nova senha deve ter no mínimo 6 caracteres'),
+});

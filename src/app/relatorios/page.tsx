@@ -26,6 +26,12 @@ interface PendenciaRel {
   codigo_aneel: string; nome_completo: string; nivel_academico: string;
   ano: number; mes: number; valor_devido: string;
 }
+interface InstituicaoRel {
+  nome_completo: string; perfil: string; email: string;
+  total_projetos: number; valor_mensal_total: string;
+  competencias_pendentes: number; competencias_pagas: number;
+  total_pendente: string; total_pago: string;
+}
 
 export default function RelatoriosPage() {
   const { isAuthenticated, user } = useAuth();
@@ -39,7 +45,7 @@ export default function RelatoriosPage() {
 }
 
 function RelatoriosContent() {
-  const [aba, setAba] = useState<'rubricas' | 'folha' | 'pendencias'>('rubricas');
+  const [aba, setAba] = useState<'rubricas' | 'folha' | 'folha_instituicao' | 'pendencias'>('rubricas');
 
   const { data: rubricasDados, isLoading: loadingRubricas } = useQuery<RubricaRel[]>({
     queryKey: ['rel-rubricas'],
@@ -59,7 +65,13 @@ function RelatoriosContent() {
     enabled: aba === 'pendencias',
   });
 
-  const isLoading = loadingRubricas || loadingFolha || loadingPend;
+  const { data: instDados, isLoading: loadingInst } = useQuery<InstituicaoRel[]>({
+    queryKey: ['rel-instituicao'],
+    queryFn: async () => (await api.get('/relatorios?tipo=folha_instituicao')).data,
+    enabled: aba === 'folha_instituicao',
+  });
+
+  const isLoading = loadingRubricas || loadingFolha || loadingPend || loadingInst;
 
   return (
     <div className="p-6">
@@ -84,6 +96,7 @@ function RelatoriosContent() {
         <button onClick={() => setAba('rubricas')} className={`px-4 py-2 rounded-lg text-sm font-medium ${aba === 'rubricas' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Relatório ANEEL por Rubricas</button>
         <button onClick={() => setAba('folha')} className={`px-4 py-2 rounded-lg text-sm font-medium ${aba === 'folha' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Extrato Mensal da Folha</button>
         <button onClick={() => setAba('pendencias')} className={`px-4 py-2 rounded-lg text-sm font-medium ${aba === 'pendencias' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Relatório de Pendências</button>
+        <button onClick={() => setAba('folha_instituicao')} className={`px-4 py-2 rounded-lg text-sm font-medium ${aba === 'folha_instituicao' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Folha Instituição</button>
       </div>
 
       {isLoading && <div className="p-6 text-center text-slate-500">Carregando...</div>}
@@ -191,6 +204,56 @@ function RelatoriosContent() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {aba === 'folha_instituicao' && !isLoading && (
+        <div className="space-y-6">
+          {instDados?.length === 0 && <p className="text-slate-500 text-center py-8">Nenhum dado encontrado</p>}
+          {(() => {
+            const totalMensal = instDados?.reduce((s, d) => s + parseFloat(String(d.valor_mensal_total)), 0) ?? 0;
+            const totalPendente = instDados?.reduce((s, d) => s + parseFloat(String(d.total_pendente)), 0) ?? 0;
+            const totalPago = instDados?.reduce((s, d) => s + parseFloat(String(d.total_pago)), 0) ?? 0;
+            return (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white rounded-xl border p-4"><p className="text-sm text-slate-500">Folha Mensal Total</p><p className="text-2xl font-bold text-slate-900">R$ {totalMensal.toLocaleString('pt-BR')}</p></div>
+                  <div className="bg-white rounded-xl border p-4"><p className="text-sm text-slate-500">Total Pago</p><p className="text-2xl font-bold text-green-700">R$ {totalPago.toLocaleString('pt-BR')}</p></div>
+                  <div className="bg-white rounded-xl border p-4"><p className="text-sm text-slate-500">Total Pendente</p><p className="text-2xl font-bold text-amber-700">R$ {totalPendente.toLocaleString('pt-BR')}</p></div>
+                </div>
+                <div className="bg-white rounded-xl shadow overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b"><tr>
+                      <th className="text-left px-4 py-3 font-medium text-slate-600">Colaborador</th>
+                      <th className="text-left px-4 py-3 font-medium text-slate-600">Perfil</th>
+                      <th className="text-left px-4 py-3 font-medium text-slate-600">Email</th>
+                      <th className="text-center px-4 py-3 font-medium text-slate-600">Projetos</th>
+                      <th className="text-right px-4 py-3 font-medium text-slate-600">Mensal</th>
+                      <th className="text-center px-4 py-3 font-medium text-slate-600">Pagas</th>
+                      <th className="text-center px-4 py-3 font-medium text-slate-600">Pendentes</th>
+                      <th className="text-right px-4 py-3 font-medium text-slate-600">Total Pago</th>
+                      <th className="text-right px-4 py-3 font-medium text-slate-600">Total Pendente</th>
+                    </tr></thead>
+                    <tbody className="divide-y">
+                      {instDados?.map((d, i) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 font-medium">{d.nome_completo}</td>
+                          <td className="px-4 py-3">{d.perfil}</td>
+                          <td className="px-4 py-3 text-slate-500 text-xs">{d.email}</td>
+                          <td className="px-4 py-3 text-center">{d.total_projetos}</td>
+                          <td className="px-4 py-3 text-right">R$ {parseFloat(String(d.valor_mensal_total)).toLocaleString('pt-BR')}/mês</td>
+                          <td className="px-4 py-3 text-center"><span className="text-green-600 font-medium">{d.competencias_pagas}</span></td>
+                          <td className="px-4 py-3 text-center"><span className="text-amber-600 font-medium">{d.competencias_pendentes}</span></td>
+                          <td className="px-4 py-3 text-right text-green-700">R$ {parseFloat(String(d.total_pago)).toLocaleString('pt-BR')}</td>
+                          <td className="px-4 py-3 text-right text-amber-700">R$ {parseFloat(String(d.total_pendente)).toLocaleString('pt-BR')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

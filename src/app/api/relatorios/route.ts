@@ -40,6 +40,25 @@ export async function GET(request: Request) {
       return NextResponse.json(dados);
     }
 
+    if (tipo === 'folha_instituicao') {
+      const dados = await query(
+        `SELECT u.nome_completo, u.perfil, u.email,
+                COUNT(DISTINCT a.projeto_id) as total_projetos,
+                SUM(a.valor_mensal_calculado) as valor_mensal_total,
+                COUNT(CASE WHEN cf.status = 'PENDENTE' THEN 1 END) as competencias_pendentes,
+                COUNT(CASE WHEN cf.status = 'PAGO' THEN 1 END) as competencias_pagas,
+                COALESCE(SUM(CASE WHEN cf.status = 'PENDENTE' THEN cf.valor_devido ELSE 0 END), 0) as total_pendente,
+                COALESCE(SUM(CASE WHEN cf.status = 'PAGO' THEN cf.valor_devido ELSE 0 END), 0) as total_pago
+         FROM usuarios u
+         JOIN alocacao_rh a ON a.usuario_id = u.id
+         JOIN projetos p ON a.projeto_id = p.id AND p.ativo = true
+         LEFT JOIN competencias_folha cf ON cf.alocacao_rh_id = a.id
+         GROUP BY u.id, u.nome_completo, u.perfil, u.email
+         ORDER BY u.nome_completo`
+      );
+      return NextResponse.json(dados);
+    }
+
     if (tipo === 'pendencias') {
       const dados = await query(
         `SELECT p.codigo_aneel, p.titulo as projeto_titulo,
@@ -55,7 +74,7 @@ export async function GET(request: Request) {
       return NextResponse.json(dados);
     }
 
-    return NextResponse.json({ error: 'Tipo de relatório inválido. Use: rubricas, folha, pendencias' }, { status: 400 });
+    return NextResponse.json({ error: 'Tipo de relatório inválido. Use: rubricas, folha, folha_instituicao, pendencias' }, { status: 400 });
   } catch (error) {
     console.error('Relatórios error:', error);
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });

@@ -1,16 +1,19 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
+import type { Projeto, RubricaProjeto, Usuario } from '@/types';
 
 const RUBRICA_LABELS: Record<string, string> = {
   RH: 'Recursos Humanos', ST: 'Serviços de Terceiros', MC: 'Materiais de Consumo',
   EP: 'Equipamentos', VD: 'Viagens e Diárias', OU: 'Outros Custos',
 };
+
+interface ProjetoComRubricas { projeto: Projeto; rubricas: RubricaProjeto[]; }
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
@@ -21,15 +24,17 @@ export default function Home() {
 }
 
 function DashboardContent() {
-  const { data: projetos } = useQuery({ queryKey: ['projetos'], queryFn: async () => (await api.get('/projetos')).data });
+  const { user } = useAuth();
 
-  const { data: todasRubricas } = useQuery({
+  const { data: projetos } = useQuery<Projeto[]>({ queryKey: ['projetos'], queryFn: async () => (await api.get('/projetos')).data });
+
+  const { data: todasRubricas } = useQuery<ProjetoComRubricas[]>({
     queryKey: ['todas-rubricas'],
     queryFn: async () => {
       if (!projetos?.length) return [];
       const results = await Promise.all(
-        projetos.map(async (p: any) => {
-          const r = await api.get(`/projetos/${p.id}/rubricas`);
+        projetos.map(async (p) => {
+          const r = await api.get<RubricaProjeto[]>(`/projetos/${p.id}/rubricas`);
           return { projeto: p, rubricas: r.data };
         })
       );
@@ -40,10 +45,10 @@ function DashboardContent() {
 
   let totalPrevisto = 0;
   let totalExecutado = 0;
-  todasRubricas?.forEach((item: any) => {
-    item.rubricas?.forEach((r: any) => {
-      totalPrevisto += parseFloat(r.valor_previsto);
-      totalExecutado += parseFloat(r.valor_executado);
+  todasRubricas?.forEach((item) => {
+    item.rubricas?.forEach((r) => {
+      totalPrevisto += parseFloat(String(r.valor_previsto));
+      totalExecutado += parseFloat(String(r.valor_executado));
     });
   });
   const saldoGlobal = totalPrevisto - totalExecutado;
@@ -60,13 +65,13 @@ function DashboardContent() {
         <Card titulo="% Execução" valor={`${pctGeral.toFixed(1)}%`} cor={pctGeral >= 100 ? 'red' : pctGeral >= 80 ? 'amber' : 'green'} />
       </div>
 
-      {todasRubricas?.map((item: any) => (
+      {todasRubricas?.map((item) => (
         <div key={item.projeto.id} className="bg-white rounded-xl shadow p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">{item.projeto.titulo} <span className="text-sm text-slate-400 font-normal">({item.projeto.codigo_aneel})</span></h2>
           <div className="space-y-3">
-            {item.rubricas?.map((r: any) => {
-              const previsto = parseFloat(r.valor_previsto);
-              const executado = parseFloat(r.valor_executado);
+            {item.rubricas?.map((r) => {
+              const previsto = parseFloat(String(r.valor_previsto));
+              const executado = parseFloat(String(r.valor_executado));
               const pct = previsto > 0 ? (executado / previsto) * 100 : 0;
               const corBarra = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-green-500';
               return (
@@ -87,6 +92,50 @@ function DashboardContent() {
           </div>
         </div>
       ))}
+
+      {user?.perfil === 'GESTOR' && <ResetPasswordSection />}
+    </div>
+  );
+}
+
+function ResetPasswordSection() {
+  const [usuarioId, setUsuarioId] = useState('');
+  const [novaSenha, setNovaSenha] = useState('');
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+
+  const { data: usuarios } = useQuery<Usuario[]>({ queryKey: ['usuarios'], queryFn: async () => (await api.get('/usuarios')).data });
+
+  const mutation = useMutation({
+    mutationFn: async () => (await api.post('/auth/reset-password', { usuario_id: usuarioId, nova_senha: novaSenha })).data,
+    onSuccess: (data) => { setMsg(data.message); setErr(''); setUsuarioId(''); setNovaSenha(''); },
+    onError: (e: Error) => { setErr(e.message); setMsg(''); },
+  });
+
+  return (
+    <div className="bg-white rounded-xl shadow p-6 mt-6">
+      <h2 className="text-lg font-semibold mb-4">Redefinir Senha de Usuário</h2>
+      <div className="flex gap-3 items-end flex-wrap">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-sm font-medium text-slate-700 mb-1">Usuário</label>
+          <select value={usuarioId} onChange={(e) => setUsuarioId(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+            <option value="">Selecione...</option>
+            {usuarios?.map((u) => <option key={u.id} value={u.id}>{u.nome_completo} ({u.email})</option>)}
+          </select>
+        </div>
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-sm font-medium text-slate-700 mb-1">Nova Senha</label>
+          <input type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        </div>
+        <button onClick={() => mutation.mutate()} disabled={!usuarioId || !novaSenha || mutation.isPending}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50">
+          {mutation.isPending ? 'Redefinindo...' : 'Redefinir'}
+        </button>
+      </div>
+      {msg && <p className="text-green-600 text-sm mt-2">{msg}</p>}
+      {err && <p className="text-red-500 text-sm mt-2">{err}</p>}
     </div>
   );
 }

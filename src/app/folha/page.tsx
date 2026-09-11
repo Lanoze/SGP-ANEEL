@@ -1,11 +1,24 @@
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import Layout from '@/components/Layout';
 import type { Projeto } from '@/types';
 
 export default function FolhaPage() {
+  const { isAuthenticated } = useAuth();
+  const router = useRouter();
+  useEffect(() => { if (!isAuthenticated) router.push('/login'); }, [isAuthenticated, router]);
+  if (!isAuthenticated) return null;
+
+  return <Layout><FolhaContent /></Layout>;
+}
+
+function FolhaContent() {
   const { data: projetos, isLoading } = useQuery<Projeto[]>({
     queryKey: ['projetos'],
     queryFn: async () => { const r = await api.get('/api/projetos'); return r.data; },

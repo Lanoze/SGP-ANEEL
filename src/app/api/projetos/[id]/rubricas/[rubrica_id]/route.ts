@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { queryOne } from '@/lib/db';
 
-export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string; rubrica_id: string }> }) {
   try {
-    const { id } = await params;
+    const { rubrica_id: id } = await params;
     const { valor_previsto } = await request.json();
 
     if (typeof valor_previsto !== 'number' || valor_previsto < 0) {

@@ -3,9 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
+import { Modal, SelectInput } from '@/components/FormComponents';
+import { createAlocacaoSchema, type createAlocacaoInput } from '@/lib/schemas';
 import type { AlocacaoRH, RubricaProjeto, CompetenciaFolha, Usuario } from '@/types';
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -158,22 +162,8 @@ function FolhaContent() {
       )}
 
       {showAlocacao && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md">
-            <h2 className="text-xl font-semibold mb-4">Alocar Colaborador</h2>
-            <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); alocacaoMutation.mutate({ projeto_id, usuario_id: fd.get('usuario_id') as string, papel_projeto: fd.get('papel_projeto') as string, nivel_academico: fd.get('nivel_academico') as string, valor_nominal_capes: parseFloat(fd.get('valor_nominal_capes') as string), nivel_complemento: parseInt(fd.get('nivel_complemento') as string) }); }} className="space-y-3">
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Usuário</label><select name="usuario_id" required className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="">Selecione...</option>{usuarios?.map((u) => <option key={u.id} value={u.id}>{u.nome_completo} ({u.perfil})</option>)}</select></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Nível Acadêmico</label><select name="nivel_academico" required className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="">Selecione...</option>{Object.keys(NOMINAL_VALUES).map((k) => <option key={k} value={k}>{k}</option>)}</select></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Papel no Projeto</label><select name="papel_projeto" required className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="PESQUISADOR">Pesquisador</option><option value="BOLSISTA">Bolsista</option><option value="COORDENADOR">Coordenador</option></select></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Valor Nominal (R$)</label><input name="valor_nominal_capes" type="number" step="0.01" required className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Complemento (0-3)</label><select name="nivel_complemento" required className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"><option value="0">Nível 0 (0%)</option><option value="1">Nível 1 (+33%)</option><option value="2">Nível 2 (+67%)</option><option value="3">Nível 3 (Dobro)</option></select></div>
-              <div className="flex gap-2 justify-end">
-                <button type="button" onClick={() => setShowAlocacao(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Alocar</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <AlocacaoModal projetoId={projeto_id} usuarios={usuarios} onClose={() => setShowAlocacao(false)}
+          onSubmit={(data) => alocacaoMutation.mutate(data)} isPending={alocacaoMutation.isPending} />
       )}
 
       {nivelModal && (
@@ -207,5 +197,71 @@ function FolhaContent() {
         </div>
       )}
     </div>
+  );
+}
+
+const PAPEL_OPTIONS = [
+  { value: 'PESQUISADOR', label: 'Pesquisador' },
+  { value: 'BOLSISTA', label: 'Bolsista' },
+  { value: 'COORDENADOR', label: 'Coordenador' },
+];
+const NIVEL_OPTIONS = [
+  { value: '0', label: 'Nível 0 (0%)' },
+  { value: '1', label: 'Nível 1 (+33%)' },
+  { value: '2', label: 'Nível 2 (+67%)' },
+  { value: '3', label: 'Nível 3 (Dobro)' },
+];
+
+function AlocacaoModal({ projetoId, usuarios, onClose, onSubmit, isPending }: {
+  projetoId: string; usuarios: Usuario[] | undefined; onClose: () => void;
+  onSubmit: (data: createAlocacaoInput) => void; isPending: boolean;
+}) {
+  const form = useForm<createAlocacaoInput>({
+    resolver: zodResolver(createAlocacaoSchema),
+    defaultValues: { projeto_id: projetoId, usuario_id: '', papel_projeto: 'PESQUISADOR', nivel_academico: '', valor_nominal_capes: 0, nivel_complemento: 0 },
+    mode: 'onChange',
+  });
+
+  const usuarioOptions = usuarios?.map((u) => ({ value: u.id, label: `${u.nome_completo} (${u.perfil})` })) || [];
+  const nivelAcademicoOptions = Object.keys(NOMINAL_VALUES).map((k) => ({ value: k, label: k }));
+
+  return (
+    <Modal open={true} onClose={onClose} title="Alocar Colaborador"
+      footer={
+        <>
+          <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
+          <button onClick={form.handleSubmit(onSubmit)} disabled={isPending || !form.formState.isValid}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+            {isPending ? 'Alocando...' : 'Alocar'}
+          </button>
+        </>
+      }>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Usuário</label>
+        <SelectInput value={form.watch('usuario_id')} onValueChange={(v) => form.setValue('usuario_id', v)} placeholder="Selecione..." options={usuarioOptions} />
+        {form.formState.errors.usuario_id && <p className="text-red-500 text-xs mt-1">{form.formState.errors.usuario_id.message}</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Nível Acadêmico</label>
+        <SelectInput value={form.watch('nivel_academico')} onValueChange={(v) => form.setValue('nivel_academico', v)} placeholder="Selecione..." options={nivelAcademicoOptions} />
+        {form.formState.errors.nivel_academico && <p className="text-red-500 text-xs mt-1">{form.formState.errors.nivel_academico.message}</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Papel no Projeto</label>
+        <SelectInput value={form.watch('papel_projeto')} onValueChange={(v) => form.setValue('papel_projeto', v as 'PESQUISADOR' | 'BOLSISTA' | 'COORDENADOR')} options={PAPEL_OPTIONS} />
+        {form.formState.errors.papel_projeto && <p className="text-red-500 text-xs mt-1">{form.formState.errors.papel_projeto.message}</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Valor Nominal (R$)</label>
+        <input type="number" step="0.01" {...form.register('valor_nominal_capes', { valueAsNumber: true })}
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        {form.formState.errors.valor_nominal_capes && <p className="text-red-500 text-xs mt-1">{form.formState.errors.valor_nominal_capes.message}</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Complemento (0-3)</label>
+        <SelectInput value={String(form.watch('nivel_complemento'))} onValueChange={(v) => form.setValue('nivel_complemento', parseInt(v))} options={NIVEL_OPTIONS} />
+        {form.formState.errors.nivel_complemento && <p className="text-red-500 text-xs mt-1">{form.formState.errors.nivel_complemento.message}</p>}
+      </div>
+    </Modal>
   );
 }

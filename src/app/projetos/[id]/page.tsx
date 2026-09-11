@@ -4,22 +4,19 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
+import { Modal, SelectInput } from '@/components/FormComponents';
+import { createLancamentoSchema, type createLancamentoInput } from '@/lib/schemas';
 import type { Projeto, RubricaProjeto, Lancamento } from '@/types';
 
 const RUBRICA_LABELS: Record<string, string> = {
   RH: 'Recursos Humanos', ST: 'Serviços de Terceiros', MC: 'Materiais de Consumo',
   EP: 'Equipamentos', VD: 'Viagens e Diárias', OU: 'Outros Custos',
 };
-
-interface LancamentoInput {
-  rubrica_projeto_id: string;
-  descricao: string;
-  valor: number;
-  data_despesa: string;
-}
 
 export default function ProjetoDetalhePage() {
   const { isAuthenticated } = useAuth();
@@ -40,7 +37,7 @@ function ProjetoDetalheContent() {
   const { data: lancamentos } = useQuery({ queryKey: ['lancamentos', selectedRubrica], queryFn: async () => (await api.get<Lancamento[]>(`/lancamentos/rubrica/${selectedRubrica}`)).data, enabled: !!selectedRubrica });
 
   const lancamentoMutation = useMutation({
-    mutationFn: async (data: LancamentoInput) => (await api.post('/lancamentos', data)).data,
+    mutationFn: async (data: createLancamentoInput) => (await api.post('/lancamentos', data)).data,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rubricas'] }); queryClient.invalidateQueries({ queryKey: ['lancamentos'] }); setShowLancamento(false); },
   });
 
@@ -101,23 +98,52 @@ function ProjetoDetalheContent() {
             </div>
           )}
           {showLancamento && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl p-6 w-full max-w-md">
-                <h2 className="text-xl font-semibold mb-4">Novo Lançamento</h2>
-                <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); lancamentoMutation.mutate({ rubrica_projeto_id: selectedRubrica!, descricao: fd.get('descricao') as string, valor: parseFloat(fd.get('valor') as string), data_despesa: fd.get('data_despesa') as string }); }} className="space-y-3">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label><input name="descricao" required className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label><input name="valor" type="number" step="0.01" min="0.01" required className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Data</label><input name="data_despesa" type="date" required className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" /></div>
-                  <div className="flex gap-2 justify-end">
-                    <button type="button" onClick={() => setShowLancamento(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
-                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Registrar</button>
-                  </div>
-                </form>
-              </div>
-            </div>
+            <LancamentoModal
+              rubricaId={selectedRubrica}
+              onClose={() => setShowLancamento(false)}
+              onSubmit={(data) => lancamentoMutation.mutate(data)}
+              isPending={lancamentoMutation.isPending}
+            />
           )}
         </>
       )}
     </div>
+  );
+}
+
+function LancamentoModal({ rubricaId, onClose, onSubmit, isPending }: { rubricaId: string | null; onClose: () => void; onSubmit: (data: createLancamentoInput) => void; isPending: boolean }) {
+  const form = useForm<createLancamentoInput>({
+    resolver: zodResolver(createLancamentoSchema),
+    defaultValues: { rubrica_projeto_id: rubricaId || '', descricao: '', valor: 0, data_despesa: '' },
+    mode: 'onChange',
+  });
+
+  return (
+    <Modal open={true} onClose={onClose} title="Novo Lançamento"
+      footer={
+        <>
+          <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
+          <button onClick={form.handleSubmit(onSubmit)} disabled={isPending || !form.formState.isValid}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+            {isPending ? 'Registrando...' : 'Registrar'}
+          </button>
+        </>
+      }>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
+        <input {...form.register('descricao')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        {form.formState.errors.descricao && <p className="text-red-500 text-xs mt-1">{form.formState.errors.descricao.message}</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label>
+        <input type="number" step="0.01" min="0.01" {...form.register('valor', { valueAsNumber: true })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        {form.formState.errors.valor && <p className="text-red-500 text-xs mt-1">{form.formState.errors.valor.message}</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>
+        <input type="date" {...form.register('data_despesa')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        {form.formState.errors.data_despesa && <p className="text-red-500 text-xs mt-1">{form.formState.errors.data_despesa.message}</p>}
+      </div>
+    </Modal>
   );
 }

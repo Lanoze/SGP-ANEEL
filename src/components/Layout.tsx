@@ -4,7 +4,11 @@ import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useMutation } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '@/contexts/AuthContext';
+import { Modal } from '@/components/FormComponents';
+import { changePasswordSchema, type changePasswordInput } from '@/lib/schemas';
 import api from '@/lib/api';
 
 const allNavItems = [
@@ -37,7 +41,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      <aside className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-slate-900 text-white flex flex-col transition-all duration-300`}>
+      <aside className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-slate-900 text-white flex flex-col transition-all duration-300 shrink-0`}>
         <div className="p-4 flex items-center justify-between">
           {sidebarOpen && <h1 className="text-lg font-bold">SGP-ANEEL</h1>}
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="text-gray-400 hover:text-white">
@@ -81,53 +85,41 @@ export default function Layout({ children }: { children: ReactNode }) {
 }
 
 function ChangePasswordModal({ onClose }: { onClose: () => void }) {
-  const [senhaAtual, setSenhaAtual] = useState('');
-  const [novaSenha, setNovaSenha] = useState('');
-  const [confirmar, setConfirmar] = useState('');
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const form = useForm<changePasswordInput>({
+    resolver: zodResolver(changePasswordSchema),
+    mode: 'onChange',
+  });
 
   const mutation = useMutation({
-    mutationFn: async () => {
-      if (novaSenha !== confirmar) throw new Error('Senhas não conferem');
-      if (novaSenha.length < 6) throw new Error('Nova senha deve ter no mínimo 6 caracteres');
-      return (await api.post('/auth/change-password', { senha_atual: senhaAtual, nova_senha: novaSenha })).data;
-    },
-    onSuccess: (data) => { setSuccess(data.message); setError(''); setTimeout(onClose, 1500); },
-    onError: (err: Error) => { setError(err.message); setSuccess(''); },
+    mutationFn: async (data: changePasswordInput) => (await api.post('/auth/change-password', data)).data,
+    onSuccess: () => setTimeout(onClose, 1000),
   });
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 w-full max-w-md">
-        <h2 className="text-xl font-semibold mb-4">Alterar Senha</h2>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Senha Atual</label>
-            <input type="password" value={senhaAtual} onChange={(e) => setSenhaAtual(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Nova Senha</label>
-            <input type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Confirmar Nova Senha</label>
-            <input type="password" value={confirmar} onChange={(e) => setConfirmar(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" required />
-          </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          {success && <p className="text-green-600 text-sm">{success}</p>}
-        </div>
-        <div className="flex gap-2 justify-end mt-4">
+    <Modal open={true} onClose={onClose} title="Alterar Senha"
+      footer={
+        <>
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
-          <button onClick={() => mutation.mutate()} disabled={mutation.isPending}
+          <button onClick={form.handleSubmit((d) => mutation.mutate(d))} disabled={mutation.isPending || !form.formState.isValid}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
             {mutation.isPending ? 'Salvando...' : 'Salvar'}
           </button>
-        </div>
+        </>
+      }>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Senha Atual</label>
+        <input type="password" {...form.register('senha_atual')}
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        {form.formState.errors.senha_atual && <p className="text-red-500 text-xs mt-1">{form.formState.errors.senha_atual.message}</p>}
       </div>
-    </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Nova Senha</label>
+        <input type="password" {...form.register('nova_senha')}
+          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        {form.formState.errors.nova_senha && <p className="text-red-500 text-xs mt-1">{form.formState.errors.nova_senha.message}</p>}
+      </div>
+      {mutation.isError && <p className="text-red-500 text-sm">{(mutation.error as Error).message}</p>}
+      {mutation.isSuccess && <p className="text-green-600 text-sm">Senha alterada com sucesso!</p>}
+    </Modal>
   );
 }

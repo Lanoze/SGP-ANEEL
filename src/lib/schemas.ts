@@ -57,3 +57,13 @@ export const resetPasswordSchema = z.object({
   usuario_id: z.string().uuid(),
   nova_senha: z.string().min(6, 'Nova senha deve ter no mínimo 6 caracteres'),
 });
+
+export type loginInput = z.infer<typeof loginSchema>;
+export type createUsuarioInput = z.infer<typeof createUsuarioSchema>;
+export type createProjetoInput = z.infer<typeof createProjetoSchema>;
+export type createLancamentoInput = z.infer<typeof createLancamentoSchema>;
+export type createAlocacaoInput = z.infer<typeof createAlocacaoSchema>;
+export type baixaCompetenciaInput = z.infer<typeof baixaCompetenciaSchema>;
+export type baixaLoteInput = z.infer<typeof baixaLoteSchema>;
+export type changePasswordInput = z.infer<typeof changePasswordSchema>;
+export type resetPasswordInput = z.infer<typeof resetPasswordSchema>;

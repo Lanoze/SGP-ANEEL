@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { resolve } from 'path';
 
-dotenv.config({ path: resolve(__dirname, '../.env.local') });
+dotenv.config({ path: resolve(__dirname, '../../.env.local') });
 
 import authRoutes from './routes/auth';
 import usuariosRoutes from './routes/usuarios';

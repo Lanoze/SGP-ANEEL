@@ -16,7 +16,7 @@ import relatoriosRoutes from './routes/relatorios';
 import auditoriaRoutes from './routes/auditoria';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = parseInt(process.env.PORT || '3001', 10);
 
 app.use(cors());
 app.use(express.json());
@@ -35,7 +35,7 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`SGP-ANEEL API running on port ${PORT}`);
 });
 

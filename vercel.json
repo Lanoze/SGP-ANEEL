@@ -3,12 +3,8 @@
   "framework": "vite",
   "buildCommand": "cd client && npm install && npm run build",
   "outputDirectory": "client/dist",
-  "installCommand": "npm install && cd server && npm install && npm run build && cd ../client && npm install",
+  "installCommand": "cd client && npm install",
   "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api"
-    },
     {
       "handle": "filesystem"
     },
@@ -16,10 +12,5 @@
       "src": "/(.*)",
       "dest": "/index.html"
     }
-  ],
-  "functions": {
-    "api/index.ts": {
-      "includeFiles": "server/dist/**/*"
-    }
-  }
+  ]
 }

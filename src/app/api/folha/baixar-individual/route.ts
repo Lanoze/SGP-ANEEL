@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { queryOne, pool } from '@/lib/db';
+import { queryOne, pool, setAuditContext } from '@/lib/db';
 import { createAuditLog } from '@/lib/audit';
 import { requireRole } from '@/lib/rbac';
 import { baixaCompetenciaSchema } from '@/lib/schemas';
@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await setAuditContext(client, auth.user.userId);
 
       const competencia = await queryOne<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number; projeto_coordenador_id: string }>(
         `SELECT cf.*, rp.id as rubrica_projeto_id, p.coordenador_id as projeto_coordenador_id

@@ -136,6 +136,79 @@ CREATE INDEX IF NOT EXISTS idx_lancamentos_rubrica ON lancamentos(rubrica_projet
 CREATE INDEX IF NOT EXISTS idx_competencias_busca ON competencias_folha(ano, mes, status);
 CREATE INDEX IF NOT EXISTS idx_documentos_categoria ON documentos_metadados(projeto_id, categoria);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_busca ON audit_logs(tabela_origem, registro_id);
+
+-- ============================================================
+-- AUDIT TRIGGERS: forensic traceability at database level
+-- ============================================================
+CREATE OR REPLACE FUNCTION fn_audit_trigger() RETURNS TRIGGER AS $$
+DECLARE
+  v_usuario_id UUID;
+  v_registro_id UUID;
+  v_estado_anterior JSONB;
+  v_estado_posterior JSONB;
+  v_acao VARCHAR(50);
+BEGIN
+  BEGIN
+    v_usuario_id := nullif(current_setting('app.current_user_id', true), '')::UUID;
+  EXCEPTION WHEN OTHERS THEN
+    v_usuario_id := NULL;
+  END;
+
+  IF TG_OP = 'INSERT' THEN
+    v_acao := 'CREATE';
+    v_registro_id := (NEW).id;
+    v_estado_anterior := NULL;
+    v_estado_posterior := to_jsonb(NEW);
+  ELSIF TG_OP = 'UPDATE' THEN
+    v_acao := 'UPDATE';
+    v_registro_id := (NEW).id;
+    v_estado_anterior := to_jsonb(OLD);
+    v_estado_posterior := to_jsonb(NEW);
+  ELSIF TG_OP = 'DELETE' THEN
+    v_acao := 'DELETE';
+    v_registro_id := (OLD).id;
+    v_estado_anterior := to_jsonb(OLD);
+    v_estado_posterior := NULL;
+  END IF;
+
+  INSERT INTO audit_logs (usuario_id, acao, tabela_origem, registro_id, estado_anterior, estado_posterior)
+  VALUES (v_usuario_id, v_acao, TG_TABLE_NAME, v_registro_id, v_estado_anterior, v_estado_posterior);
+
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  ELSE
+    RETURN NEW;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trg_audit_usuarios
+  AFTER INSERT OR UPDATE OR DELETE ON usuarios
+  FOR EACH ROW EXECUTE FUNCTION fn_audit_trigger();
+
+CREATE OR REPLACE TRIGGER trg_audit_projetos
+  AFTER INSERT OR UPDATE OR DELETE ON projetos
+  FOR EACH ROW EXECUTE FUNCTION fn_audit_trigger();
+
+CREATE OR REPLACE TRIGGER trg_audit_rubricas
+  AFTER INSERT OR UPDATE OR DELETE ON rubricas_projeto
+  FOR EACH ROW EXECUTE FUNCTION fn_audit_trigger();
+
+CREATE OR REPLACE TRIGGER trg_audit_lancamentos
+  AFTER INSERT OR UPDATE OR DELETE ON lancamentos
+  FOR EACH ROW EXECUTE FUNCTION fn_audit_trigger();
+
+CREATE OR REPLACE TRIGGER trg_audit_alocacao
+  AFTER INSERT OR UPDATE OR DELETE ON alocacao_rh
+  FOR EACH ROW EXECUTE FUNCTION fn_audit_trigger();
+
+CREATE OR REPLACE TRIGGER trg_audit_competencias
+  AFTER INSERT OR UPDATE OR DELETE ON competencias_folha
+  FOR EACH ROW EXECUTE FUNCTION fn_audit_trigger();
+
+CREATE OR REPLACE TRIGGER trg_audit_documentos
+  AFTER INSERT OR UPDATE OR DELETE ON documentos_metadados
+  FOR EACH ROW EXECUTE FUNCTION fn_audit_trigger();
 `;
 
 async function migrate() {

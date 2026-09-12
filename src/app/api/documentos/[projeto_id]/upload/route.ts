@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { queryOne, pool } from '@/lib/db';
+import { queryOne, pool, setAuditContext } from '@/lib/db';
 import { createAuditLog } from '@/lib/audit';
 import { requireAuth, canAccessContratosRH } from '@/lib/rbac';
 import crypto from 'crypto';
@@ -77,6 +77,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await setAuditContext(client, usuario_id);
 
       const metaResult = await client.query(
         `INSERT INTO documentos_metadados (projeto_id, categoria, nome_arquivo, extensao, mime_type, tamanho_bytes, hash_sha256, usuario_upload_id)

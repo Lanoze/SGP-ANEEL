@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { query, queryOne, pool } from '@/lib/db';
+import { query, queryOne, pool, setAuditContext } from '@/lib/db';
 import { createAuditLog } from '@/lib/audit';
 import { requireRole } from '@/lib/rbac';
 import { baixaLoteSchema } from '@/lib/schemas';
@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await setAuditContext(client, auth.user.userId);
 
       const competencias = await query<{ id: string; valor_devido: number; rubrica_projeto_id: string }>(
         `SELECT cf.*, rp.id as rubrica_projeto_id

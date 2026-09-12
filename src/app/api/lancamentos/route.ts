@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { queryOne, pool } from '@/lib/db';
+import { queryOne, pool, setAuditContext } from '@/lib/db';
 import { createAuditLog } from '@/lib/audit';
 import { requireRole } from '@/lib/rbac';
 import { createLancamentoSchema } from '@/lib/schemas';
@@ -19,6 +19,7 @@ export async function POST(request: Request) {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await setAuditContext(client, auth.user.userId);
 
       const rubrica = await queryOne<{ saldo: number }>(
         `SELECT rp.valor_previsto - COALESCE(SUM(l.valor), 0) as saldo

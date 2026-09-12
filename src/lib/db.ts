@@ -26,4 +26,8 @@ export async function queryOne<T = Record<string, unknown>>(text: string, params
   return rows[0] ?? null;
 }
 
+export async function setAuditContext(client: { query: (text: string, params?: unknown[]) => Promise<unknown> }, usuarioId: string | null): Promise<void> {
+  await client.query(`SET LOCAL app.current_user_id = $1`, [usuarioId || '']);
+}
+
 export { pool };

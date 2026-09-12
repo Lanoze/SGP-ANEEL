@@ -5,15 +5,15 @@ import path from 'path';
 
 dotenv.config({ path: path.resolve(__dirname, '../.env.local') });
 
-import authRoutes from '../server/src/routes/auth';
-import usuariosRoutes from '../server/src/routes/usuarios';
-import projetosRoutes from '../server/src/routes/projetos';
-import rubricasRoutes from '../server/src/routes/rubricas';
-import lancamentosRoutes from '../server/src/routes/lancamentos';
-import documentosRoutes from '../server/src/routes/documentos';
-import folhaRoutes from '../server/src/routes/folha';
-import relatoriosRoutes from '../server/src/routes/relatorios';
-import auditoriaRoutes from '../server/src/routes/auditoria';
+const authRoutes = require('../server/dist/routes/auth').default;
+const usuariosRoutes = require('../server/dist/routes/usuarios').default;
+const projetosRoutes = require('../server/dist/routes/projetos').default;
+const rubricasRoutes = require('../server/dist/routes/rubricas').default;
+const lancamentosRoutes = require('../server/dist/routes/lancamentos').default;
+const documentosRoutes = require('../server/dist/routes/documentos').default;
+const folhaRoutes = require('../server/dist/routes/folha').default;
+const relatoriosRoutes = require('../server/dist/routes/relatorios').default;
+const auditoriaRoutes = require('../server/dist/routes/auditoria').default;
 
 const app = express();
 app.use(cors());

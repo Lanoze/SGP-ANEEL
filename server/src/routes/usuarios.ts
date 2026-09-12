@@ -68,4 +68,52 @@ router.get('/:id', requireAuth, async (req, res) => {
   }
 });
 
+router.put('/:id', requireRole(['GESTOR']), async (req, res) => {
+  try {
+    const user = req.user!;
+    const existing = await queryOne<Usuario>('SELECT * FROM usuarios WHERE id = $1', [req.params.id]);
+    if (!existing) { res.status(404).json({ error: 'Usuário não encontrado' }); return; }
+
+    const { nome_completo, email, perfil, ativo } = req.body as Partial<Pick<Usuario, 'nome_completo' | 'email' | 'perfil' | 'ativo'>>;
+    const updates: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+
+    if (nome_completo !== undefined) { updates.push(`nome_completo = $${idx++}`); values.push(nome_completo); }
+    if (email !== undefined) { updates.push(`email = $${idx++}`); values.push(email); }
+    if (perfil !== undefined) { updates.push(`perfil = $${idx++}`); values.push(perfil); }
+    if (ativo !== undefined) { updates.push(`ativo = $${idx++}`); values.push(ativo); }
+
+    if (updates.length === 0) { res.status(400).json({ error: 'Nenhum campo para atualizar' }); return; }
+
+    values.push(req.params.id);
+    await query(`UPDATE usuarios SET ${updates.join(', ')} WHERE id = $${idx}`, values);
+
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    await createAuditLog({ usuario_id: user.userId, acao: 'UPDATE', tabela_origem: 'usuarios', registro_id: req.params.id, estado_anterior: { nome_completo: existing.nome_completo, email: existing.email, perfil: existing.perfil, ativo: existing.ativo }, estado_posterior: { nome_completo, email, perfil, ativo }, endereco_ip: String(ip) });
+    res.json({ message: 'Usuário atualizado' });
+  } catch (error) {
+    console.error('Update usuario error:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+router.delete('/:id', requireRole(['GESTOR']), async (req, res) => {
+  try {
+    const user = req.user!;
+    if (req.params.id === user.userId) { res.status(400).json({ error: 'Não é possível excluir seu próprio usuário' }); return; }
+
+    const existing = await queryOne<Usuario>('SELECT * FROM usuarios WHERE id = $1', [req.params.id]);
+    if (!existing) { res.status(404).json({ error: 'Usuário não encontrado' }); return; }
+
+    await query('DELETE FROM usuarios WHERE id = $1', [req.params.id]);
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    await createAuditLog({ usuario_id: user.userId, acao: 'DELETE', tabela_origem: 'usuarios', registro_id: req.params.id, estado_anterior: { nome_completo: existing.nome_completo, email: existing.email, perfil: existing.perfil }, endereco_ip: String(ip) });
+    res.json({ message: 'Usuário excluído' });
+  } catch (error) {
+    console.error('Delete usuario error:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
 export default router;

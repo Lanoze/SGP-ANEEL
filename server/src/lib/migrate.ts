@@ -207,6 +207,31 @@ DROP TRIGGER IF EXISTS trg_audit_documentos ON documentos_metadados;
 CREATE TRIGGER trg_audit_documentos
   AFTER INSERT OR UPDATE OR DELETE ON documentos_metadados
   FOR EACH ROW EXECUTE FUNCTION fn_audit_trigger();
+
+-- ============================================================
+-- TABELA TEMPORÁRIA: chunks para upload stream (serverless-safe)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS upload_chunks (
+  file_id     VARCHAR(100) NOT NULL,
+  chunk_index INTEGER NOT NULL,
+  chunk_data  BYTEA NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (file_id, chunk_index)
+);
+
+-- Limpeza automática de chunks abandonados (mais de 1 hora)
+CREATE OR REPLACE FUNCTION fn_cleanup_old_chunks()
+RETURNS TRIGGER AS $$
+BEGIN
+  DELETE FROM upload_chunks WHERE created_at < NOW() - INTERVAL '1 hour';
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_cleanup_chunks ON upload_chunks;
+CREATE TRIGGER trg_cleanup_chunks
+  AFTER INSERT ON upload_chunks
+  FOR EACH STATEMENT EXECUTE FUNCTION fn_cleanup_old_chunks();
 `;
 
 async function migrate() {

@@ -53,8 +53,6 @@ function validarMagicBytes(buffer: Buffer, extensao: string): { valido: boolean;
   return { valido: false, esperado: mimeFromExt, detectado: detected };
 }
 
-const chunkBuffers = new Map<string, { chunks: Buffer[]; totalChunks: number; fileName: string; fileSize: number; projetoId: string; categoria: string }>();
-
 router.get('/:projeto_id', requireAuth, async (req, res) => {
   try {
     const user = extractUser(req);
@@ -176,25 +174,42 @@ router.post('/upload-stream', requireAuth, async (req, res) => {
       return;
     }
 
-    if (!chunkBuffers.has(fileId)) {
-      chunkBuffers.set(fileId, { chunks: [], totalChunks, fileName, fileSize, projetoId, categoria });
-    }
-    const state = chunkBuffers.get(fileId)!;
-    state.chunks[chunkIndex] = Buffer.from(chunk);
+    // Store chunk in database (serverless-safe)
+    await query(
+      `INSERT INTO upload_chunks (file_id, chunk_index, chunk_data) VALUES ($1, $2, $3)
+       ON CONFLICT (file_id, chunk_index) DO UPDATE SET chunk_data = EXCLUDED.chunk_data`,
+      [fileId, chunkIndex, Buffer.from(chunk)]
+    );
 
-    const receivedCount = state.chunks.filter((c) => c !== undefined).length;
+    const countResult = await queryOne<{ count: string }>(
+      'SELECT COUNT(*) as count FROM upload_chunks WHERE file_id = $1', [fileId]
+    );
+    const receivedCount = parseInt(countResult?.count || '0');
 
     if (receivedCount < totalChunks) {
       res.json({ message: 'Chunk recebido', received: receivedCount, total: totalChunks });
       return;
     }
 
-    const fullContent = Buffer.concat(state.chunks);
-    chunkBuffers.delete(fileId);
+    // Reassemble chunks from database
+    const rows = await query<{ chunk_data: Buffer }>(
+      'SELECT chunk_data FROM upload_chunks WHERE file_id = $1 ORDER BY chunk_index', [fileId]
+    );
+    const fullContent = Buffer.concat(rows.map((r) => Buffer.from(r.chunk_data)));
+
+    // Clean up chunks
+    await query('DELETE FROM upload_chunks WHERE file_id = $1', [fileId]);
 
     const hash = crypto.createHash('sha256').update(fullContent).digest('hex');
     const ext = fileName.includes('.') ? '.' + fileName.split('.').pop()?.toLowerCase() : '';
     const mimeType = EXT_MAP[ext] || 'application/octet-stream';
+
+    // Magic bytes validation
+    const validacao = validarMagicBytes(fullContent, ext);
+    if (!validacao.valido) {
+      res.status(422).json({ error: `Arquivo inválido: assinatura binária não confere. Esperado ${validacao.esperado}, detectado ${validacao.detectado}` });
+      return;
+    }
 
     if (user.perfil !== 'GESTOR' && categoria === 'CONTRATO_RH') {
       res.status(403).json({ error: 'Sem permissão para Contratos de RH' });
@@ -265,6 +280,45 @@ router.get('/download/:id', requireAuth, async (req, res) => {
     res.send(Buffer.from(payload.conteudo_binario));
   } catch (error) {
     console.error('Download documento error:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+router.delete('/:id', requireAuth, async (req, res) => {
+  try {
+    const user = extractUser(req);
+    if (!user) { res.status(401).json({ error: 'Não autenticado' }); return; }
+
+    if (user.perfil === 'BOLSISTA') {
+      res.status(403).json({ error: 'Acesso negado' });
+      return;
+    }
+
+    const meta = await queryOne<DocumentoMetadados>(
+      'SELECT * FROM documentos_metadados WHERE id = $1', [req.params.id]
+    );
+    if (!meta) { res.status(404).json({ error: 'Documento não encontrado' }); return; }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await setAuditContext(client, user.userId);
+
+      await client.query('DELETE FROM documentos_payload WHERE documento_id = $1', [req.params.id]);
+      await client.query('DELETE FROM documentos_metadados WHERE id = $1', [req.params.id]);
+
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+      await createAuditLog({
+        usuario_id: user.userId, acao: 'DELETE', tabela_origem: 'documentos_metadados',
+        registro_id: req.params.id, estado_anterior: { nome_arquivo: meta.nome_arquivo, categoria: meta.categoria },
+        endereco_ip: String(ip),
+      });
+
+      await client.query('COMMIT');
+      res.json({ message: 'Documento excluído' });
+    } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+  } catch (error) {
+    console.error('Delete documento error:', error);
     res.status(500).json({ error: 'Erro interno' });
   }
 });

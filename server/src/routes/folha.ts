@@ -318,4 +318,90 @@ router.put('/alterar-nivel', requireRole(['GESTOR']), async (req, res) => {
   }
 });
 
+const cancelarCompetenciaSchema = z.object({
+  competencia_id: z.string().uuid(),
+});
+
+router.post('/cancelar', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
+  try {
+    const user = req.user!;
+    const parsed = cancelarCompetenciaSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+    const { competencia_id } = parsed.data;
+
+    const competencia = await queryOne<{ id: string; status: string; valor_devido: number; projeto_coordenador_id: string }>(
+      `SELECT cf.*, p.coordenador_id as projeto_coordenador_id
+       FROM competencias_folha cf
+       JOIN alocacao_rh a ON cf.alocacao_rh_id = a.id
+       JOIN projetos p ON p.id = a.projeto_id
+       WHERE cf.id = $1`,
+      [competencia_id]
+    );
+
+    if (!competencia) { res.status(404).json({ error: 'Competência não encontrada' }); return; }
+    if (competencia.status !== 'PENDENTE') { res.status(400).json({ error: 'Só é possível cancelar competências pendentes' }); return; }
+
+    if (user.perfil === 'COORDENADOR' && competencia.projeto_coordenador_id !== user.userId) {
+      res.status(403).json({ error: 'Coordenador não é responsável por este projeto' });
+      return;
+    }
+
+    await query(
+      "UPDATE competencias_folha SET status = 'CANCELADO' WHERE id = $1",
+      [competencia_id]
+    );
+
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    await createAuditLog({
+      usuario_id: user.userId, acao: 'CANCELAR', tabela_origem: 'competencias_folha',
+      registro_id: competencia_id,
+      estado_anterior: { status: 'PENDENTE', valor: competencia.valor_devido },
+      estado_posterior: { status: 'CANCELADO' },
+      endereco_ip: String(ip),
+    });
+
+    res.json({ message: 'Competência cancelada' });
+  } catch (error) {
+    console.error('Cancelar competencia error:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+router.delete('/alocacao/:id', requireRole(['GESTOR']), async (req, res) => {
+  try {
+    const user = req.user!;
+
+    const alocacao = await queryOne<{ id: string; projeto_id: string }>(
+      'SELECT id, projeto_id FROM alocacao_rh WHERE id = $1', [req.params.id]
+    );
+    if (!alocacao) { res.status(404).json({ error: 'Alocação não encontrada' }); return; }
+
+    const pendentes = await queryOne<{ count: string }>(
+      "SELECT COUNT(*) as count FROM competencias_folha WHERE alocacao_rh_id = $1 AND status = 'PENDENTE'",
+      [req.params.id]
+    );
+    if (pendentes && parseInt(pendentes.count) > 0) {
+      res.status(400).json({ error: 'Não é possível excluir alocação com competências pendentes. Baixe ou cancele primeiro.' });
+      return;
+    }
+
+    await query('DELETE FROM alocacao_rh WHERE id = $1', [req.params.id]);
+
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    await createAuditLog({
+      usuario_id: user.userId, acao: 'DELETE', tabela_origem: 'alocacao_rh',
+      registro_id: req.params.id, estado_anterior: { projeto_id: alocacao.projeto_id },
+      endereco_ip: String(ip),
+    });
+
+    res.json({ message: 'Alocação excluída' });
+  } catch (error) {
+    console.error('Delete alocacao error:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
 export default router;

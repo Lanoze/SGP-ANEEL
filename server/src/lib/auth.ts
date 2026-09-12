@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { queryOne } from './db';
 import type { JwtPayload, Usuario } from './types';
 

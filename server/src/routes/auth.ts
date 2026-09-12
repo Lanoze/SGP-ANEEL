@@ -64,7 +64,7 @@ router.post('/change-password', requireAuth, async (req, res) => {
       res.status(404).json({ error: 'Usuário não encontrado' });
       return;
     }
-    const bcrypt = await import('bcrypt');
+    const bcrypt = await import('bcryptjs');
     const valid = await bcrypt.default.compare(senha_atual, usuario.hash_senha);
     if (!valid) {
       res.status(401).json({ error: 'Senha atual incorreta' });

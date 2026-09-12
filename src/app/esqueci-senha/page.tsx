@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
 import api from '@/lib/api';
 
+interface ForgotError {
+  response?: { data?: { error?: string } };
+}
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [msg, setMsg] = useState('');
@@ -12,8 +16,8 @@ export default function ForgotPasswordPage() {
 
   const mutation = useMutation({
     mutationFn: async () => (await api.post('/auth/forgot-password', { email })).data,
-    onSuccess: (data) => { setMsg(data.message); setErr(''); },
-    onError: (e: any) => { setErr(e.response?.data?.error || 'Erro ao enviar'); setMsg(''); },
+    onSuccess: (data: { message: string }) => { setMsg(data.message); setErr(''); },
+    onError: (e: ForgotError) => { setErr(e.response?.data?.error || 'Erro ao enviar'); setMsg(''); },
   });
 
   return (

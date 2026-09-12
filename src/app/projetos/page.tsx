@@ -3,9 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import api from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import Layout from '@/components/Layout';
+import { Modal } from '@/components/FormComponents';
+import { createProjetoSchema, type createProjetoInput } from '@/lib/schemas';
 import type { Projeto } from '@/types';
 
 export default function ProjetosPage() {
@@ -21,13 +25,13 @@ function ProjetosContent() {
   const queryClient = useQueryClient();
   const router = useRouter();
 
-  const { data: projetos, isLoading } = useQuery({
+  const { data: projetos, isLoading } = useQuery<Projeto[]>({
     queryKey: ['projetos'],
-    queryFn: async () => (await api.get<Projeto[]>('/projetos')).data,
+    queryFn: async () => (await api.get('/projetos')).data,
   });
 
   const createMutation = useMutation({
-    mutationFn: async (data: any) => (await api.post('/projetos', data)).data,
+    mutationFn: async (data: createProjetoInput) => (await api.post('/projetos', data)).data,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['projetos'] }); setShowCreate(false); },
   });
 
@@ -40,25 +44,7 @@ function ProjetosContent() {
         <button onClick={() => setShowCreate(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">+ Novo Projeto</button>
       </div>
       {showCreate && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg">
-            <h2 className="text-xl font-semibold mb-4">Novo Projeto</h2>
-            <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); createMutation.mutate({ codigo_aneel: fd.get('codigo_aneel'), titulo: fd.get('titulo'), descricao: fd.get('descricao'), coordenador_id: fd.get('coordenador_id'), data_inicio: fd.get('data_inicio'), data_fim: fd.get('data_fim') }); }} className="space-y-3">
-              <Input name="codigo_aneel" label="Código ANEEL" required />
-              <Input name="titulo" label="Título" required />
-              <Input name="descricao" label="Descrição" />
-              <Input name="coordenador_id" label="ID Coordenador (UUID)" required />
-              <div className="grid grid-cols-2 gap-3">
-                <Input name="data_inicio" label="Data Início" type="date" required />
-                <Input name="data_fim" label="Data Fim" type="date" required />
-              </div>
-              <div className="flex gap-2 justify-end">
-                <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Criar</button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <CreateProjetoModal onClose={() => setShowCreate(false)} onSubmit={(d) => createMutation.mutate(d)} isPending={createMutation.isPending} />
       )}
       <div className="grid gap-4">
         {projetos?.map((p) => (
@@ -78,11 +64,55 @@ function ProjetosContent() {
   );
 }
 
-function Input({ name, label, type = 'text', required = false }: { name: string; label: string; type?: string; required?: boolean }) {
+function CreateProjetoModal({ onClose, onSubmit, isPending }: { onClose: () => void; onSubmit: (d: createProjetoInput) => void; isPending: boolean }) {
+  const form = useForm<createProjetoInput>({
+    resolver: zodResolver(createProjetoSchema),
+    defaultValues: { codigo_aneel: '', titulo: '', descricao: '', coordenador_id: '', data_inicio: '', data_fim: '' },
+    mode: 'onChange',
+  });
+
   return (
-    <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-      <input name={name} type={type} required={required} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500" />
-    </div>
+    <Modal open={true} onClose={onClose} title="Novo Projeto"
+      footer={
+        <>
+          <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
+          <button onClick={form.handleSubmit(onSubmit)} disabled={isPending || !form.formState.isValid}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+            {isPending ? 'Criando...' : 'Criar'}
+          </button>
+        </>
+      }>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Código ANEEL</label>
+        <input {...form.register('codigo_aneel')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        {form.formState.errors.codigo_aneel && <p className="text-red-500 text-xs mt-1">{form.formState.errors.codigo_aneel.message}</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Título</label>
+        <input {...form.register('titulo')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        {form.formState.errors.titulo && <p className="text-red-500 text-xs mt-1">{form.formState.errors.titulo.message}</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
+        <input {...form.register('descricao')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">ID Coordenador (UUID)</label>
+        <input {...form.register('coordenador_id')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        {form.formState.errors.coordenador_id && <p className="text-red-500 text-xs mt-1">{form.formState.errors.coordenador_id.message}</p>}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Data Início</label>
+          <input type="date" {...form.register('data_inicio')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+          {form.formState.errors.data_inicio && <p className="text-red-500 text-xs mt-1">{form.formState.errors.data_inicio.message}</p>}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Data Fim</label>
+          <input type="date" {...form.register('data_fim')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+          {form.formState.errors.data_fim && <p className="text-red-500 text-xs mt-1">{form.formState.errors.data_fim.message}</p>}
+        </div>
+      </div>
+    </Modal>
   );
 }

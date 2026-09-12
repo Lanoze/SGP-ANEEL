@@ -61,7 +61,7 @@ router.get('/alocacao/:projeto_id', requireAuth, async (req, res) => {
 
 router.post('/alocacao/:projeto_id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const parsed = createAlocacaoSchema.safeParse({ ...req.body, projeto_id: req.params.projeto_id });
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
@@ -121,7 +121,7 @@ router.get('/competencias/:alocacao_id', requireAuth, async (req, res) => {
 
 router.post('/baixar-individual', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const parsed = baixaCompetenciaSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
@@ -196,7 +196,7 @@ router.post('/baixar-individual', requireRole(['GESTOR', 'COORDENADOR']), async 
 
 router.post('/baixar-lote', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const parsed = baixaLoteSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
@@ -284,7 +284,7 @@ const alterarNivelSchema = z.object({
 
 router.put('/alterar-nivel', requireRole(['GESTOR']), async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const parsed = alterarNivelSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });

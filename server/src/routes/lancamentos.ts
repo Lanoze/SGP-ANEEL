@@ -9,7 +9,7 @@ const router = Router();
 
 router.post('/', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const parsed = createLancamentoSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });

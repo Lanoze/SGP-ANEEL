@@ -23,7 +23,7 @@ router.get('/', requireAuth, async (_req, res) => {
 
 router.post('/', requireRole(['GESTOR']), async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const parsed = createProjetoSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
@@ -81,7 +81,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 
 router.put('/:id', requireRole(['GESTOR']), async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const parsed = createProjetoSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
@@ -120,7 +120,7 @@ router.put('/:id', requireRole(['GESTOR']), async (req, res) => {
 
 router.delete('/:id', requireRole(['GESTOR']), async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const existing = await queryOne<Projeto>('SELECT * FROM projetos WHERE id = $1', [req.params.id]);
     if (!existing) {
       res.status(404).json({ error: 'Projeto não encontrado' });

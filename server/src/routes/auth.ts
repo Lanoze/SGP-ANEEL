@@ -52,7 +52,7 @@ router.post('/forgot-password', async (req, res) => {
 
 router.post('/change-password', requireAuth, async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const parsed = changePasswordSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
@@ -83,7 +83,7 @@ router.post('/change-password', requireAuth, async (req, res) => {
 
 router.post('/reset-password', requireRole(['GESTOR']), async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const parsed = resetPasswordSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });

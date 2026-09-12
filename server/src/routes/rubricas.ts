@@ -27,7 +27,7 @@ router.get('/:id/rubricas', requireAuth, async (req, res) => {
 
 router.put('/:id/rubricas', requireRole(['GESTOR']), async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const { rubrica_id, valor_previsto } = req.body;
     if (!rubrica_id || valor_previsto === undefined) {
       res.status(400).json({ error: 'rubrica_id e valor_previsto obrigatórios' });
@@ -54,7 +54,7 @@ router.put('/:id/rubricas', requireRole(['GESTOR']), async (req, res) => {
 
 router.put('/:id/rubricas/:rubrica_id', requireRole(['GESTOR']), async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const { valor_previsto } = req.body;
     if (valor_previsto === undefined) {
       res.status(400).json({ error: 'valor_previsto obrigatório' });

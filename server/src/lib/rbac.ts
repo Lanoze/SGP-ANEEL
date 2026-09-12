@@ -22,7 +22,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     res.status(401).json({ error: 'Não autenticado' });
     return;
   }
-  (req as any).user = user;
+  req.user = user;
   next();
 }
 
@@ -37,7 +37,7 @@ export function requireRole(allowedRoles: RoleUsuario[]) {
       res.status(403).json({ error: 'Acesso negado', required: allowedRoles });
       return;
     }
-    (req as any).user = user;
+    req.user = user;
     next();
   };
 }
@@ -55,7 +55,7 @@ export function requireMinRole(minRole: RoleUsuario) {
       res.status(403).json({ error: 'Permissão insuficiente', required: minRole });
       return;
     }
-    (req as any).user = user;
+    req.user = user;
     next();
   };
 }

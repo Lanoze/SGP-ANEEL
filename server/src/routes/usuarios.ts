@@ -22,7 +22,7 @@ router.get('/', requireAuth, async (_req, res) => {
 
 router.post('/', requireRole(['GESTOR']), async (req, res) => {
   try {
-    const user = (req as any).user;
+    const user = req.user!;
     const parsed = createUsuarioSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });

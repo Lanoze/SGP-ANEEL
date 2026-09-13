@@ -58,8 +58,12 @@ router.get('/:projeto_id', requireAuth, async (req, res) => {
     const user = extractUser(req);
     if (!user) { res.status(401).json({ error: 'Não autenticado' }); return; }
 
+    const projeto = await queryOne<{ coordenador_id: string }>(
+      'SELECT coordenador_id FROM projetos WHERE id = $1', [req.params.projeto_id]
+    );
+    const userCanSeeContratos = canAccessContratosRH(user.perfil, req.params.projeto_id, user.userId, projeto?.coordenador_id);
+
     const categoria = req.query.categoria as string | undefined;
-    const userCanSeeContratos = canAccessContratosRH(user.perfil);
 
     let where = 'dm.projeto_id = $1';
     const sqlParams: unknown[] = [req.params.projeto_id];
@@ -106,9 +110,14 @@ router.post('/:projeto_id/upload', requireAuth, upload.single('arquivo'), async 
     if (!arquivo) { res.status(400).json({ error: 'Nenhum arquivo enviado' }); return; }
     if (!categoria) { res.status(400).json({ error: 'Categoria obrigatória' }); return; }
 
-    if (categoria === 'CONTRATO_RH' && !canAccessContratosRH(perfil)) {
-      res.status(403).json({ error: 'Acesso negado: contratos de RH restritos a gestores e coordenadores' });
-      return;
+    if (categoria === 'CONTRATO_RH') {
+      const projeto = await queryOne<{ coordenador_id: string }>(
+        'SELECT coordenador_id FROM projetos WHERE id = $1', [req.params.projeto_id]
+      );
+      if (!canAccessContratosRH(perfil, req.params.projeto_id, user.userId, projeto?.coordenador_id)) {
+        res.status(403).json({ error: 'Acesso negado: contratos de RH restritos a gestores e coordenadores do projeto' });
+        return;
+      }
     }
 
     const buffer = arquivo.buffer;
@@ -211,9 +220,14 @@ router.post('/upload-stream', requireAuth, async (req, res) => {
       return;
     }
 
-    if (user.perfil !== 'GESTOR' && categoria === 'CONTRATO_RH') {
-      res.status(403).json({ error: 'Sem permissão para Contratos de RH' });
-      return;
+    if (categoria === 'CONTRATO_RH') {
+      const projeto = await queryOne<{ coordenador_id: string }>(
+        'SELECT coordenador_id FROM projetos WHERE id = $1', [projetoId]
+      );
+      if (!canAccessContratosRH(user.perfil, projetoId, user.userId, projeto?.coordenador_id)) {
+        res.status(403).json({ error: 'Sem permissão para Contratos de RH' });
+        return;
+      }
     }
 
     const client = await pool.connect();
@@ -260,9 +274,14 @@ router.get('/download/:id', requireAuth, async (req, res) => {
     );
     if (!meta) { res.status(404).json({ error: 'Documento não encontrado' }); return; }
 
-    if (meta.categoria === 'CONTRATO_RH' && !canAccessContratosRH(user.perfil)) {
-      res.status(403).json({ error: 'Acesso negado' });
-      return;
+    if (meta.categoria === 'CONTRATO_RH') {
+      const projeto = await queryOne<{ coordenador_id: string }>(
+        'SELECT coordenador_id FROM projetos WHERE id = $1', [meta.projeto_id]
+      );
+      if (!canAccessContratosRH(user.perfil, meta.projeto_id, user.userId, projeto?.coordenador_id)) {
+        res.status(403).json({ error: 'Acesso negado' });
+        return;
+      }
     }
 
     const payload = await queryOne<{ conteudo_binario: Buffer }>(

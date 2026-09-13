@@ -126,7 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_alocacao_usuario        ON alocacao_rh (usuario_i
 CREATE INDEX IF NOT EXISTS idx_competencias_alocacao   ON competencias_folha (alocacao_rh_id);
 CREATE INDEX IF NOT EXISTS idx_competencias_status     ON competencias_folha (status);
 CREATE INDEX IF NOT EXISTS idx_documentos_projeto      ON documentos_metadados (projeto_id);
-CREATE INDEX IF NOT EXISTS idx_documentos_categoria    ON documentos_metadados (categoria);
+CREATE INDEX IF NOT EXISTS idx_documentos_categoria_simples ON documentos_metadados (categoria);
 CREATE INDEX IF NOT EXISTS idx_audit_usuario           ON audit_logs (usuario_id);
 CREATE INDEX IF NOT EXISTS idx_audit_tabela            ON audit_logs (tabela_origem);
 CREATE INDEX IF NOT EXISTS idx_audit_criado            ON audit_logs (criado_em);

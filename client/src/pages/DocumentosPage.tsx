@@ -54,7 +54,7 @@ function DocumentosContent() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Documentos do Projeto</h1>
-        <button onClick={() => setShowUpload(!showUpload)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">{showUpload ? 'Fechar' : '+ Enviar Documento'}</button>
+        {user?.perfil !== 'BOLSISTA' && <button onClick={() => setShowUpload(!showUpload)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">{showUpload ? 'Fechar' : '+ Enviar Documento'}</button>}
       </div>
       {showUpload && <div className="mb-6"><UploadDocumento projetoId={projetoId!} onSuccess={() => setShowUpload(false)} /></div>}
       <div className="flex gap-2 mb-4 flex-wrap">

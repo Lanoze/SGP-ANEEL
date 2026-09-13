@@ -60,6 +60,10 @@ export function requireMinRole(minRole: RoleUsuario) {
   };
 }
 
-export function canAccessContratosRH(perfil: RoleUsuario): boolean {
-  return perfil === 'GESTOR' || perfil === 'COORDENADOR';
+export function canAccessContratosRH(perfil: RoleUsuario, projetoId?: string, userId?: string, coordenadorId?: string): boolean {
+  if (perfil === 'GESTOR') return true;
+  if (perfil === 'COORDENADOR' && projetoId && userId && coordenadorId) {
+    return userId === coordenadorId;
+  }
+  return false;
 }

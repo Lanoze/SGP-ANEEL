@@ -16,8 +16,9 @@ async function run() {
     try {
       await pool.query(sql);
       console.log('OK: ' + name);
-    } catch (e: any) {
-      console.log('SKIP: ' + name + ' - ' + e.message);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.log('SKIP: ' + name + ' - ' + msg);
     }
   }
   console.log('DONE');

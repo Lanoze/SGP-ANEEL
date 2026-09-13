@@ -22,6 +22,8 @@ function ProjetosContent() {
   const [showCreate, setShowCreate] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isGestor = user?.perfil === 'GESTOR';
 
   const { data: projetos, isLoading } = useQuery<Projeto[]>({
     queryKey: ['projetos'],
@@ -39,7 +41,7 @@ function ProjetosContent() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Projetos</h1>
-        <button onClick={() => setShowCreate(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">+ Novo Projeto</button>
+        {isGestor && <button onClick={() => setShowCreate(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">+ Novo Projeto</button>}
       </div>
       {showCreate && (
         <CreateProjetoModal onClose={() => setShowCreate(false)} onSubmit={(d) => createMutation.mutate(d)} isPending={createMutation.isPending} />

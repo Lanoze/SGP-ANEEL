@@ -195,15 +195,16 @@ router.post('/baixar-individual', requireRole(['GESTOR']), async (req, res) => {
          FROM lancamentos l WHERE l.rubrica_projeto_id = $2`,
         [valorPrevisto, competencia.rubrica_projeto_id]
       );
-      const saldo = saldoResult.rows[0]?.saldo ?? 0;
-      if (saldo < competencia.valor_devido) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldo }); return; }
+      const saldo = parseFloat(String(saldoResult.rows[0]?.saldo ?? 0));
+      const valorDevido = parseFloat(String(competencia.valor_devido));
+      if (saldo < valorDevido) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldo }); return; }
 
       const saldoAnterior = saldo;
 
       await client.query(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, CURRENT_DATE, $4)`,
-        [competencia.rubrica_projeto_id, `Baixa folha - competência ${competencia.mes}/${competencia.ano}`, competencia.valor_devido, user.userId]
+        [competencia.rubrica_projeto_id, `Baixa folha - competência ${competencia.mes}/${competencia.ano}`, valorDevido, user.userId]
       );
 
       await client.query(
@@ -217,8 +218,8 @@ router.post('/baixar-individual', requireRole(['GESTOR']), async (req, res) => {
         acao: 'BAIXA_INDIVIDUAL',
         tabela_origem: 'competencias_folha',
         registro_id: competencia_id,
-        estado_anterior: { status: 'PENDENTE', valor: competencia.valor_devido, saldo_rh: saldoAnterior },
-        estado_posterior: { status: 'PAGO', saldo_rh: saldoAnterior - competencia.valor_devido },
+        estado_anterior: { status: 'PENDENTE', valor: valorDevido, saldo_rh: saldoAnterior },
+        estado_posterior: { status: 'PAGO', saldo_rh: saldoAnterior - valorDevido },
         endereco_ip: String(ip),
       });
 
@@ -273,7 +274,7 @@ router.post('/baixar-lote', requireRole(['GESTOR']), async (req, res) => {
          FROM lancamentos l WHERE l.rubrica_projeto_id = $2`,
         [valorPrevistoLote, rubrica_projeto_id]
       );
-      const saldo = rubricaLoteResult.rows[0]?.saldo ?? 0;
+      const saldo = parseFloat(String(rubricaLoteResult.rows[0]?.saldo ?? 0));
 
       if (saldo < totalFolha) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldo, total_folha: totalFolha }); return; }
 

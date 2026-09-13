@@ -40,8 +40,9 @@ router.post('/', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
          FROM lancamentos l WHERE l.rubrica_projeto_id = $2`,
         [valorPrevisto, rubrica_projeto_id]
       );
-      const saldo = saldoResult.rows[0].saldo;
-      if (saldo < valor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldo }); return; }
+      const saldo = parseFloat(String(saldoResult.rows[0].saldo));
+      const valorFloat = parseFloat(String(valor));
+      if (saldo < valorFloat) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldo }); return; }
       const lancResult = await client.query<Lancamento>(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,
@@ -130,7 +131,7 @@ router.put('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
            FROM lancamentos l WHERE l.rubrica_projeto_id = $3 AND l.id != $4`,
           [valorPrevisto, (novaRubrica === existing.rubrica_projeto_id) ? parseFloat(String(existing.valor)) : 0, novaRubrica, id]
         );
-        const saldoDisponivel = saldoResult.rows[0]?.saldo ?? 0;
+        const saldoDisponivel = parseFloat(String(saldoResult.rows[0]?.saldo ?? 0));
         if (saldoDisponivel < novoValor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldoDisponivel }); return; }
       }
       const setClauses = keys.map((k, i) => `${k} = $${i + 1}`);

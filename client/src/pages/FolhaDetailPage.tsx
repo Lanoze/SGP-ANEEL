@@ -32,6 +32,7 @@ function FolhaContent() {
   const [loteAno, setLoteAno] = useState('2026');
   const [baixaModal, setBaixaModal] = useState<{ competencia: CompetenciaFolha; alocacao: AlocacaoRH } | null>(null);
   const [nivelModal, setNivelModal] = useState<AlocacaoRH | null>(null);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   const { data: rubricas } = useQuery({ queryKey: ['rubricas', projeto_id], queryFn: async () => (await api.get<RubricaProjeto[]>(`/projetos/${projeto_id}/rubricas`)).data, enabled: !!projeto_id });
   const { data: projeto } = useQuery<Projeto>({ queryKey: ['projeto', projeto_id], queryFn: async () => (await api.get<Projeto>(`/projetos/${projeto_id}`)).data, enabled: !!projeto_id });
@@ -41,18 +42,22 @@ function FolhaContent() {
   const alocacaoMutation = useMutation({
     mutationFn: async (data: { projeto_id: string; usuario_id: string; papel_projeto: string; nivel_academico: string; valor_nominal_capes: number; nivel_complemento: number }) => (await api.post(`/folha/alocacao/${projeto_id}`, data)).data,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['folha'] }); setShowAlocacao(false); },
+    onError: () => { setModalError('Erro ao alocar colaborador.'); },
   });
   const baixaMutation = useMutation({
     mutationFn: async (competencia_id: string) => (await api.post('/folha/baixar-individual', { competencia_id })).data,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['folha'] }); setBaixaModal(null); },
+    onError: (err: any) => { setModalError(err?.response?.data?.error || 'Erro ao liquidar competência.'); },
   });
   const baixaLoteMutation = useMutation({
     mutationFn: async () => (await api.post('/folha/baixar-lote', { projeto_id, ano: parseInt(loteAno), mes: parseInt(loteMes) })).data,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['folha'] }); setShowLoteModal(false); },
+    onError: (err: any) => { setModalError(err?.response?.data?.error || 'Erro ao baixar em lote.'); },
   });
   const nivelMutation = useMutation({
     mutationFn: async (data: { alocacao_id: string; nivel_complemento: number }) => (await api.put('/folha/alterar-nivel', data)).data,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['folha'] }); queryClient.invalidateQueries({ queryKey: ['rubricas'] }); setNivelModal(null); },
+    onError: () => { setModalError('Erro ao alterar nível.'); },
   });
 
   const rhRubrica = rubricas?.find((r) => r.rubrica === 'RH');
@@ -77,10 +82,10 @@ function FolhaContent() {
           <p className="text-slate-500 text-sm">Saldo RH disponível: R$ {saldoRH.toLocaleString('pt-BR')} · Pendências: {pendentesCount} ({pendentesTotal > 0 ? `R$ ${pendentesTotal.toLocaleString('pt-BR')}` : '-'})</p>
         </div>
         <div className="flex gap-2">
-          {canBaixarLote && pendentesCount > 0 && (
-            <button onClick={() => setShowLoteModal(true)} className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Baixar em Lote</button>
+              {canBaixarLote && pendentesCount > 0 && (
+            <button onClick={() => { setModalError(null); setShowLoteModal(true); }} className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-amber-700">Baixar em Lote</button>
           )}
-          <button onClick={() => setShowAlocacao(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">+ Alocar Colaborador</button>
+          <button onClick={() => { setModalError(null); setShowAlocacao(true); }} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">+ Alocar Colaborador</button>
         </div>
       </div>
       <div className="space-y-4">
@@ -88,11 +93,11 @@ function FolhaContent() {
           <div key={a.id} className="bg-white rounded-xl shadow p-4">
             <div className="flex justify-between items-start mb-3">
               <div><h3 className="font-semibold">{a.nome_completo}</h3><p className="text-sm text-slate-500">{a.papel_projeto} · {a.nivel_academico} · CPF: {a.cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '***.$2.$3-$4')}</p></div>
-              <div className="text-right"><p className="text-sm text-slate-500">Nominal: R$ {parseFloat(String(a.valor_nominal_capes)).toLocaleString('pt-BR')}</p><p className="text-sm font-semibold">Complemento: {a.nivel_complemento}/3</p><p className="text-lg font-bold text-green-700">R$ {parseFloat(String(a.valor_mensal_calculado)).toLocaleString('pt-BR')}/mês</p>{(user?.perfil === 'GESTOR' || user?.perfil === 'COORDENADOR') && <button onClick={() => setNivelModal(a)} className="mt-1 text-xs text-blue-600 hover:text-blue-800 underline">Alterar Nível</button>}</div>
+              <div className="text-right"><p className="text-sm text-slate-500">Nominal: R$ {parseFloat(String(a.valor_nominal_capes)).toLocaleString('pt-BR')}</p><p className="text-sm font-semibold">Complemento: {a.nivel_complemento}/3</p><p className="text-lg font-bold text-green-700">R$ {parseFloat(String(a.valor_mensal_calculado)).toLocaleString('pt-BR')}/mês</p>{(user?.perfil === 'GESTOR' || user?.perfil === 'COORDENADOR') && <button onClick={() => { setModalError(null); setNivelModal(a); }} className="mt-1 text-xs text-blue-600 hover:text-blue-800 underline">Alterar Nível</button>}</div>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {a.competencias?.map((c) => (
-                <button key={c.id} onClick={() => c.status === 'PENDENTE' && canBaixarLote && setBaixaModal({ competencia: c, alocacao: a })} disabled={c.status !== 'PENDENTE' || !canBaixarLote}
+                <button key={c.id} onClick={() => { if (c.status === 'PENDENTE' && canBaixarLote) { setModalError(null); setBaixaModal({ competencia: c, alocacao: a }); } }} disabled={c.status !== 'PENDENTE' || !canBaixarLote}
                   className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${c.status === 'PAGO' ? 'bg-green-100 text-green-700 border border-green-300' : c.status === 'PENDENTE' ? 'bg-amber-100 text-amber-700 border border-amber-300 hover:bg-amber-200 cursor-pointer' : 'bg-slate-100 text-slate-400 border border-slate-200'}`}
                   title={c.status === 'PAGO' ? `Pago em ${c.data_baixa}` : canBaixarLote ? 'Clique para dar baixa' : 'Sem permissão'}>
                   {MESES[c.mes - 1]}/{String(c.ano).slice(2)} {c.status === 'PAGO' ? '✓' : c.status === 'PENDENTE' ? '●' : '○'}
@@ -114,8 +119,9 @@ function FolhaContent() {
               <div className="flex justify-between"><span className="text-slate-500 text-sm">Rubrica de Débito:</span><span className="font-medium text-sm">RH</span></div>
               <div className="flex justify-between"><span className="text-slate-500 text-sm">Saldo RH Atual:</span><span className={`font-medium text-sm ${saldoRH < baixaModal.competencia.valor_devido ? 'text-red-600' : ''}`}>R$ {saldoRH.toLocaleString('pt-BR')}</span></div>
             </div>
+            {modalError && <p className="text-red-600 text-sm mb-4 bg-red-50 p-2 rounded">{modalError}</p>}
             <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setBaixaModal(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
+              <button type="button" onClick={() => { setModalError(null); setBaixaModal(null); }} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
               <button onClick={() => baixaMutation.mutate(baixaModal.competencia.id)} disabled={baixaMutation.isPending}
                 className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-50">
                 {baixaMutation.isPending ? 'Processando...' : 'Confirmar Liquidação'}
@@ -133,6 +139,7 @@ function FolhaContent() {
             <p className="text-sm text-slate-600 mb-4">Valor total: <strong>R$ {pendentesTotal.toLocaleString('pt-BR')}</strong></p>
             <p className="text-sm text-slate-600 mb-4">Saldo RH: <strong>R$ {saldoRH.toLocaleString('pt-BR')}</strong></p>
             {pendentesTotal > saldoRH && <p className="text-sm text-red-600 mb-4">Saldo RH insuficiente para esta operação</p>}
+            {modalError && <p className="text-red-600 text-sm mb-4 bg-red-50 p-2 rounded">{modalError}</p>}
             <div className="grid grid-cols-2 gap-3 mb-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Mês</label>
@@ -152,7 +159,7 @@ function FolhaContent() {
               </div>
             </div>
             <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setShowLoteModal(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
+              <button type="button" onClick={() => { setModalError(null); setShowLoteModal(false); }} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
               <button onClick={() => baixaLoteMutation.mutate()} disabled={!loteMes || pendentesTotal > saldoRH || baixaLoteMutation.isPending}
                 className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-50">
                 {baixaLoteMutation.isPending ? 'Processando...' : 'Confirmar Baixa'}
@@ -178,6 +185,7 @@ function FolhaContent() {
               <div className="flex justify-between"><span className="text-slate-500 text-sm">Complemento Atual:</span><span className="font-medium text-sm">{nivelModal.nivel_complemento}/3 → R$ {parseFloat(String(nivelModal.valor_mensal_calculado)).toLocaleString('pt-BR')}/mês</span></div>
             </div>
             <p className="text-xs text-amber-600 mb-4">A alteração recalcula automaticamente as competências pendentes do projeto.</p>
+            {modalError && <p className="text-red-600 text-sm mb-4 bg-red-50 p-2 rounded">{modalError}</p>}
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 mb-1">Novo Nível (0-3)</label>
               <select id="novo-nivel" defaultValue={nivelModal.nivel_complemento} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
@@ -188,7 +196,7 @@ function FolhaContent() {
               </select>
             </div>
             <div className="flex gap-2 justify-end">
-              <button type="button" onClick={() => setNivelModal(null)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
+              <button type="button" onClick={() => { setModalError(null); setNivelModal(null); }} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
               <button onClick={() => { const sel = document.getElementById('novo-nivel') as HTMLSelectElement; nivelMutation.mutate({ alocacao_id: nivelModal.id, nivel_complemento: parseInt(sel.value) }); }} disabled={nivelMutation.isPending}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
                 {nivelMutation.isPending ? 'Salvando...' : 'Salvar Alteração'}

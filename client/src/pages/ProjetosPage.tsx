@@ -11,6 +11,11 @@ import { Modal } from '../components/FormComponents';
 import { createProjetoSchema, type createProjetoInput } from '../lib/schemas';
 import type { Projeto } from '../types';
 
+function fmtDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 export default function ProjetosPage() {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -57,7 +62,7 @@ function ProjetosContent() {
                 <h3 className="text-lg font-semibold mt-2">{p.titulo}</h3>
                 <p className="text-slate-500 text-sm mt-1">Coordenador: {p.coordenador_nome}</p>
               </div>
-              <div className="text-right text-sm text-slate-500"><p>{p.data_inicio} → {p.data_fim}</p></div>
+              <div className="text-right text-sm text-slate-500"><p>{fmtDate(p.data_inicio)} → {fmtDate(p.data_fim)}</p></div>
             </div>
           </div>
         ))}

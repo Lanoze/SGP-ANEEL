@@ -16,6 +16,11 @@ const RUBRICA_LABELS: Record<string, string> = {
   EP: 'Equipamentos', VD: 'Viagens e Diárias', OU: 'Outros Custos',
 };
 
+function fmtDate(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
 export default function ProjetoDetailPage() {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -83,7 +88,7 @@ function ProjetoDetalheContent() {
                 <span className="text-xs font-mono bg-slate-100 px-2 py-1 rounded">{projeto.codigo_aneel}</span>
                 <h1 className="text-2xl font-bold text-slate-900 mt-2">{projeto.titulo}</h1>
                 <p className="text-slate-500 mt-1">{projeto.descricao}</p>
-                <p className="text-slate-400 text-sm mt-1">Coordenador: {projeto.coordenador_nome} · {projeto.data_inicio} → {projeto.data_fim}</p>
+                <p className="text-slate-400 text-sm mt-1">Coordenador: {projeto.coordenador_nome} · {fmtDate(projeto.data_inicio)} → {fmtDate(projeto.data_fim)}</p>
               </div>
               {isGestor && (
                 <div className="flex gap-2">
@@ -137,7 +142,7 @@ function ProjetoDetalheContent() {
                               <div key={l.id} className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
                                 <div>
                                   <p className="font-medium text-sm">{l.descricao}</p>
-                                  <p className="text-xs text-slate-500">{l.data_despesa} · {l.usuario_nome}</p>
+                                  <p className="text-xs text-slate-500">{fmtDate(l.data_despesa)} · {l.usuario_nome}</p>
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <span className="text-sm font-semibold text-red-600">- R$ {parseFloat(String(l.valor)).toLocaleString('pt-BR')}</span>
@@ -318,7 +323,7 @@ function ConfirmDeleteLancamentoModal({ lancamento, onClose, onConfirm, isPendin
         </>
       }>
       <p className="text-sm text-slate-600">Tem certeza que deseja excluir o lancamento <strong>{lancamento.descricao}</strong>?</p>
-      <p className="text-xs text-slate-500 mt-1">Valor: R$ {parseFloat(String(lancamento.valor)).toLocaleString('pt-BR')} · {lancamento.data_despesa}</p>
+      <p className="text-xs text-slate-500 mt-1">Valor: R$ {parseFloat(String(lancamento.valor)).toLocaleString('pt-BR')} · {fmtDate(lancamento.data_despesa)}</p>
     </Modal>
   );
 }

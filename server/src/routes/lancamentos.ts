@@ -2,15 +2,15 @@ import { Router } from 'express';
 import { query, pool, setAuditContext } from '../lib/db';
 import { createAuditLog } from '../lib/audit';
 import { requireAuth, requireRole } from '../lib/rbac';
-import { createLançamentoSchema } from '../lib/schemas';
-import type { Lançamento } from '../lib/types';
+import { createLancamentoSchema } from '../lib/schemas';
+import type { Lancamento } from '../lib/types';
 
 const router = Router();
 
 router.post('/', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
   try {
     const user = req.user!;
-    const parsed = createLançamentoSchema.safeParse(req.body);
+    const parsed = createLancamentoSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
       return;
@@ -33,7 +33,7 @@ router.post('/', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
       );
       const saldo = saldoResult.rows[0].saldo;
       if (saldo < valor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldo }); return; }
-      const lancResult = await client.query<Lançamento>(
+      const lancResult = await client.query<Lancamento>(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,
         [rubrica_projeto_id, descricao, valor, data_despesa, user.userId]
@@ -55,7 +55,7 @@ router.get('/rubrica/:rubrica_projeto_id', requireAuth, async (req, res) => {
     const page = parseInt(String(req.query.page)) || 1;
     const limit = parseInt(String(req.query.limit)) || 20;
     const offset = (page - 1) * limit;
-    const lancamentos = await query<Lançamento & { total: number }>(
+    const lancamentos = await query<Lancamento & { total: number }>(
       `SELECT l.*, u.nome_completo as usuario_nome, COUNT(*) OVER() as total
        FROM lancamentos l LEFT JOIN usuarios u ON l.usuario_registro_id = u.id
        WHERE l.rubrica_projeto_id = $1
@@ -72,7 +72,7 @@ router.get('/rubrica/:rubrica_projeto_id', requireAuth, async (req, res) => {
 
 router.get('/projeto/:projeto_id', requireAuth, async (req, res) => {
   try {
-    const lancamentos = await query<Lançamento>(
+    const lancamentos = await query<Lancamento>(
       `SELECT l.*, u.nome_completo as usuario_nome, rp.rubrica
        FROM lancamentos l
        LEFT JOIN usuarios u ON l.usuario_registro_id = u.id
@@ -92,7 +92,7 @@ router.put('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
   try {
     const user = req.user!;
     const { id } = req.params;
-    const parsed = createLançamentoSchema.partial().safeParse(req.body);
+    const parsed = createLancamentoSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
       return;
@@ -104,7 +104,7 @@ router.put('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
     try {
       await client.query('BEGIN');
       await setAuditContext(client, user.userId);
-      const existingResult = await client.query<Lançamento>(`SELECT * FROM lancamentos WHERE id = $1 FOR UPDATE`, [id]);
+      const existingResult = await client.query<Lancamento>(`SELECT * FROM lancamentos WHERE id = $1 FOR UPDATE`, [id]);
       const existing = existingResult.rows[0];
       if (!existing) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Lançamento não encontrado' }); return; }
       const novaRubrica = (fields.rubrica_projeto_id as string) || existing.rubrica_projeto_id;
@@ -126,7 +126,7 @@ router.put('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
       }
       const setClauses = keys.map((k, i) => `${k} = $${i + 1}`);
       const values = keys.map((k) => (fields as Record<string, unknown>)[k]);
-      const updatedResult = await client.query<Lançamento>(
+      const updatedResult = await client.query<Lancamento>(
         `UPDATE lancamentos SET ${setClauses.join(', ')} WHERE id = $${keys.length + 1} RETURNING *`,
         [...values, id]
       );
@@ -149,7 +149,7 @@ router.delete('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) =
     try {
       await client.query('BEGIN');
       await setAuditContext(client, user.userId);
-      const existingResult = await client.query<Lançamento>(`SELECT * FROM lancamentos WHERE id = $1 FOR UPDATE`, [id]);
+      const existingResult = await client.query<Lancamento>(`SELECT * FROM lancamentos WHERE id = $1 FOR UPDATE`, [id]);
       const existing = existingResult.rows[0];
       if (!existing) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Lançamento não encontrado' }); return; }
       await client.query(`DELETE FROM lancamentos WHERE id = $1`, [id]);

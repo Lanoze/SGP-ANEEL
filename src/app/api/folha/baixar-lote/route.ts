@@ -6,7 +6,7 @@ import { baixaLoteSchema } from '@/lib/schemas';
 
 export async function POST(request: Request) {
   try {
-    const auth = requireRole(request, ['GESTOR', 'COORDENADOR']);
+    const auth = requireRole(request, ['GESTOR']);
     if (auth.error) return auth.error;
 
     const body = await request.json();
@@ -15,15 +15,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
     }
     const { projeto_id, ano, mes } = parsed.data;
-
-    if (auth.user.perfil === 'COORDENADOR') {
-      const projeto = await queryOne<{ coordenador_id: string }>(
-        'SELECT coordenador_id FROM projetos WHERE id = $1', [projeto_id]
-      );
-      if (!projeto || projeto.coordenador_id !== auth.user.userId) {
-        return NextResponse.json({ error: 'Coordenador não é responsável por este projeto' }, { status: 403 });
-      }
-    }
 
     const client = await pool.connect();
     try {

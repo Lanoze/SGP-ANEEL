@@ -6,7 +6,7 @@ import { baixaCompetenciaSchema } from '@/lib/schemas';
 
 export async function POST(request: Request) {
   try {
-    const auth = requireRole(request, ['GESTOR', 'COORDENADOR']);
+    const auth = requireRole(request, ['GESTOR']);
     if (auth.error) return auth.error;
 
     const body = await request.json();
@@ -20,22 +20,16 @@ export async function POST(request: Request) {
     try {
       await client.query('BEGIN');
 
-      const competencia = await queryOne<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number; projeto_coordenador_id: string }>(
-        `SELECT cf.*, rp.id as rubrica_projeto_id, p.coordenador_id as projeto_coordenador_id
+      const competencia = await queryOne<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number }>(
+        `SELECT cf.*, rp.id as rubrica_projeto_id
          FROM competencias_folha cf
          JOIN alocacao_rh a ON cf.alocacao_rh_id = a.id
          JOIN rubricas_projeto rp ON rp.projeto_id = a.projeto_id AND rp.rubrica = 'RH'
-         JOIN projetos p ON p.id = a.projeto_id
          WHERE cf.id = $1 AND cf.status = 'PENDENTE'`,
         [competencia_id]
       );
 
       if (!competencia) { await client.query('ROLLBACK'); return NextResponse.json({ error: 'Competência não encontrada ou já liquidada' }, { status: 404 }); }
-
-      if (auth.user.perfil === 'COORDENADOR' && competencia.projeto_coordenador_id !== auth.user.userId) {
-        await client.query('ROLLBACK');
-        return NextResponse.json({ error: 'Coordenador não é responsável por este projeto' }, { status: 403 });
-      }
 
       const rubrica = await queryOne<{ saldo: number }>(
         `SELECT rp.valor_previsto - COALESCE(SUM(l.valor), 0) as saldo

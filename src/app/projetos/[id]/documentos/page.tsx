@@ -13,7 +13,7 @@ const CATEGORIA_LABELS: Record<string, string> = { GERAL: 'Geral', COMPROVANTE_L
 const CATEGORIA_CORES: Record<string, string> = { GERAL: 'bg-slate-100 text-slate-700', COMPROVANTE_LANCAMENTO: 'bg-blue-100 text-blue-700', RELATORIO_TECNICO: 'bg-purple-100 text-purple-700', CONTRATO_RH: 'bg-red-100 text-red-700' };
 function formatarTamanho(bytes: number): string { if (bytes < 1024) return `${bytes} B`; if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`; return `${(bytes / (1024 * 1024)).toFixed(1)} MB`; }
 
-const CAN_ACCESS_CONTRATOS = ['GESTOR', 'COORDENADOR'];
+const CAN_ACCESS_CONTRATOS = ['GESTOR', 'COORDENADOR', 'PESQUISADOR'];
 const PREVIEWABLE = ['pdf', 'png', 'jpg', 'jpeg', 'gif', 'webp'];
 
 export default function DocumentosPage() {

@@ -66,7 +66,7 @@ function FolhaContent() {
     return acc + (a.competencias?.filter((c) => c.status === 'PENDENTE').reduce((s, c) => s + parseFloat(String(c.valor_devido)), 0) ?? 0);
   }, 0) ?? 0;
 
-  const canBaixarLote = user?.perfil === 'GESTOR' || user?.perfil === 'COORDENADOR';
+  const canBaixarLote = user?.perfil === 'GESTOR';
 
   return (
     <div className="p-6">
@@ -87,7 +87,7 @@ function FolhaContent() {
           <div key={a.id} className="bg-white rounded-xl shadow p-4">
             <div className="flex justify-between items-start mb-3">
               <div><h3 className="font-semibold">{a.nome_completo}</h3><p className="text-sm text-slate-500">{a.papel_projeto} · {a.nivel_academico} · CPF: {a.cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '***.$2.$3-$4')}</p></div>
-              <div className="text-right"><p className="text-sm text-slate-500">Nominal: R$ {parseFloat(String(a.valor_nominal_capes)).toLocaleString('pt-BR')}</p><p className="text-sm font-semibold">Complemento: {a.nivel_complemento}/3</p><p className="text-lg font-bold text-green-700">R$ {parseFloat(String(a.valor_mensal_calculado)).toLocaleString('pt-BR')}/mês</p>{user?.perfil === 'GESTOR' && <button onClick={() => setNivelModal(a)} className="mt-1 text-xs text-blue-600 hover:text-blue-800 underline">Alterar Nível</button>}</div>
+              <div className="text-right"><p className="text-sm text-slate-500">Nominal: R$ {parseFloat(String(a.valor_nominal_capes)).toLocaleString('pt-BR')}</p><p className="text-sm font-semibold">Complemento: {a.nivel_complemento}/3</p><p className="text-lg font-bold text-green-700">R$ {parseFloat(String(a.valor_mensal_calculado)).toLocaleString('pt-BR')}/mês</p>{(user?.perfil === 'GESTOR' || user?.perfil === 'COORDENADOR') && <button onClick={() => setNivelModal(a)} className="mt-1 text-xs text-blue-600 hover:text-blue-800 underline">Alterar Nível</button>}</div>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {a.competencias?.map((c) => (

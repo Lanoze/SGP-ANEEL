@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyToken } from './auth';
+import { queryOne } from './db';
 import type { RoleUsuario, JwtPayload } from '@/types';
 
 const ROLE_HIERARCHY: Record<RoleUsuario, number> = {
@@ -48,4 +49,17 @@ export function canAccessContratosRH(perfil: RoleUsuario): boolean {
 
 export function canViewAudit(perfil: RoleUsuario): boolean {
   return perfil === 'GESTOR';
+}
+
+export async function canAccessContratosRHForProject(perfil: RoleUsuario, projetoId: string, userId: string): Promise<boolean> {
+  if (perfil === 'GESTOR' || perfil === 'COORDENADOR') return true;
+  if (perfil === 'BOLSISTA') return false;
+  if (perfil === 'PESQUISADOR') {
+    const alocacao = await queryOne<{ id: string }>(
+      'SELECT id FROM alocacao_rh WHERE projeto_id = $1 AND usuario_id = $2',
+      [projetoId, userId]
+    );
+    return !!alocacao;
+  }
+  return false;
 }

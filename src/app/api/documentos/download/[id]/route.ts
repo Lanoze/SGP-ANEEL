@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { queryOne } from '@/lib/db';
-import { requireAuth, canAccessContratosRH } from '@/lib/rbac';
+import { requireAuth, canAccessContratosRHForProject } from '@/lib/rbac';
 import type { DocumentoMetadados } from '@/types';
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -14,7 +14,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     );
     if (!meta) return NextResponse.json({ error: 'Documento não encontrado' }, { status: 404 });
 
-    if (meta.categoria === 'CONTRATO_RH' && !canAccessContratosRH(auth.user.perfil)) {
+    if (meta.categoria === 'CONTRATO_RH' && !(await canAccessContratosRHForProject(auth.user.perfil, meta.projeto_id, auth.user.userId))) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
     }
 

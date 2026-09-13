@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/rbac';
+import { requireAuth, canAccessContratosRHForProject } from '@/lib/rbac';
 import { queryOne, pool } from '@/lib/db';
 import { createAuditLog } from '@/lib/audit';
 import crypto from 'crypto';
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     const ext = fileName.includes('.') ? '.' + fileName.split('.').pop()?.toLowerCase() : '';
     const mimeType = EXT_MAP[ext] || 'application/octet-stream';
 
-    if (auth.user.perfil !== 'GESTOR' && categoria === 'CONTRATO_RH') {
+    if (categoria === 'CONTRATO_RH' && !(await canAccessContratosRHForProject(auth.user.perfil, projetoId, auth.user.userId))) {
       return NextResponse.json({ error: 'Sem permissão para Contratos de RH' }, { status: 403 });
     }
 

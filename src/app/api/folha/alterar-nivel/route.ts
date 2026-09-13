@@ -15,7 +15,7 @@ function calcularValorMensal(nominal: number, nivel: number): number {
 
 export async function PUT(request: Request) {
   try {
-    const auth = requireRole(request, ['GESTOR']);
+    const auth = requireRole(request, ['GESTOR', 'COORDENADOR']);
     if (auth.error) return auth.error;
 
     const body = await request.json();

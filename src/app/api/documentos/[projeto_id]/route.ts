@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { requireAuth, canAccessContratosRH } from '@/lib/rbac';
+import { requireAuth, canAccessContratosRHForProject } from '@/lib/rbac';
 
 export async function GET(request: Request, { params }: { params: Promise<{ projeto_id: string }> }) {
   try {
@@ -12,7 +12,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
     const url = new URL(request.url);
     const categoria = url.searchParams.get('categoria');
 
-    const userCanSeeContratos = canAccessContratosRH(auth.user.perfil);
+    const userCanSeeContratos = await canAccessContratosRHForProject(auth.user.perfil, projeto_id, auth.user.userId);
 
     let where = 'dm.projeto_id = $1';
     const sqlParams: unknown[] = [projeto_id];

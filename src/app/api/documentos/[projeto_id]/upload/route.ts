@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { queryOne, pool } from '@/lib/db';
 import { createAuditLog } from '@/lib/audit';
-import { requireAuth, canAccessContratosRH } from '@/lib/rbac';
+import { requireAuth, canAccessContratosRHForProject } from '@/lib/rbac';
 import crypto from 'crypto';
 
 const MAGIC_BYTES: Record<string, number[][]> = {
@@ -59,8 +59,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
     if (!arquivo) return NextResponse.json({ error: 'Nenhum arquivo enviado' }, { status: 400 });
     if (!categoria) return NextResponse.json({ error: 'Categoria obrigatória' }, { status: 400 });
 
-    if (categoria === 'CONTRATO_RH' && !canAccessContratosRH(perfil)) {
-      return NextResponse.json({ error: 'Acesso negado: contratos de RH restritos a gestores e coordenadores' }, { status: 403 });
+    if (categoria === 'CONTRATO_RH' && !(await canAccessContratosRHForProject(perfil, projeto_id, usuario_id))) {
+      return NextResponse.json({ error: 'Acesso negado: contratos de RH restritos a gestores, coordenadores e pesquisadores do projeto' }, { status: 403 });
     }
 
     const buffer = Buffer.from(await arquivo.arrayBuffer());

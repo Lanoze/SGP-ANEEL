@@ -7,9 +7,9 @@ import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import Breadcrumbs from '../components/Breadcrumbs';
-import { Modal } from '../components/FormComponents';
+import { Modal, SelectInput } from '../components/FormComponents';
 import { createProjetoSchema, type createProjetoInput } from '../lib/schemas';
-import type { Projeto } from '../types';
+import type { Projeto, Usuario } from '../types';
 
 function fmtDate(iso: string) {
   const d = new Date(iso);
@@ -72,6 +72,9 @@ function ProjetosContent() {
 }
 
 function CreateProjetoModal({ onClose, onSubmit, isPending }: { onClose: () => void; onSubmit: (d: createProjetoInput) => void; isPending: boolean }) {
+  const { data: usuarios } = useQuery<Usuario[]>({ queryKey: ['usuarios'], queryFn: async () => (await api.get('/usuarios')).data });
+  const coordOptions = usuarios?.filter((u) => u.perfil === 'GESTOR' || u.perfil === 'COORDENADOR').map((u) => ({ value: u.id, label: `${u.nome_completo} (${u.perfil})` })) || [];
+
   const form = useForm<createProjetoInput>({
     resolver: zodResolver(createProjetoSchema),
     defaultValues: { codigo_aneel: '', titulo: '', descricao: '', coordenador_id: '', data_inicio: '', data_fim: '' },
@@ -104,8 +107,8 @@ function CreateProjetoModal({ onClose, onSubmit, isPending }: { onClose: () => v
         <input {...form.register('descricao')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">ID Coordenador (UUID)</label>
-        <input {...form.register('coordenador_id')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        <label className="block text-sm font-medium text-slate-700 mb-1">Coordenador</label>
+        <SelectInput value={form.watch('coordenador_id')} onValueChange={(v) => form.setValue('coordenador_id', v)} placeholder="Selecione o coordenador..." options={coordOptions} />
         {form.formState.errors.coordenador_id && <p className="text-red-500 text-xs mt-1">{form.formState.errors.coordenador_id.message}</p>}
       </div>
       <div className="grid grid-cols-2 gap-3">

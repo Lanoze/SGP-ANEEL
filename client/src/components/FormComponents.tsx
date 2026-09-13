@@ -15,7 +15,7 @@ export function Modal({ open, onClose, title, children, footer }: ModalProps) {
     <Dialog.Root open={open} onOpenChange={(v) => !v && onClose()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 z-50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+        <Dialog.Content onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()} className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
           <Dialog.Title className="text-xl font-semibold mb-4">{title}</Dialog.Title>
           <div className="space-y-3">{children}</div>
           {footer && <div className="flex gap-2 justify-end mt-4">{footer}</div>}

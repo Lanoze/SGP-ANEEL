@@ -64,7 +64,7 @@ function FolhaContent() {
     return acc + (a.competencias?.filter((c) => c.status === 'PENDENTE').reduce((s, c) => s + parseFloat(String(c.valor_devido)), 0) ?? 0);
   }, 0) ?? 0;
 
-  const canBaixarLote = user?.perfil === 'GESTOR' || user?.perfil === 'COORDENADOR';
+  const canBaixarLote = user?.perfil === 'GESTOR';
 
   return (
     <div className="p-6">
@@ -85,7 +85,7 @@ function FolhaContent() {
           <div key={a.id} className="bg-white rounded-xl shadow p-4">
             <div className="flex justify-between items-start mb-3">
               <div><h3 className="font-semibold">{a.nome_completo}</h3><p className="text-sm text-slate-500">{a.papel_projeto} · {a.nivel_academico} · CPF: {a.cpf?.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '***.$2.$3-$4')}</p></div>
-              <div className="text-right"><p className="text-sm text-slate-500">Nominal: R$ {parseFloat(String(a.valor_nominal_capes)).toLocaleString('pt-BR')}</p><p className="text-sm font-semibold">Complemento: {a.nivel_complemento}/3</p><p className="text-lg font-bold text-green-700">R$ {parseFloat(String(a.valor_mensal_calculado)).toLocaleString('pt-BR')}/mês</p>{user?.perfil === 'GESTOR' && <button onClick={() => setNivelModal(a)} className="mt-1 text-xs text-blue-600 hover:text-blue-800 underline">Alterar Nível</button>}</div>
+              <div className="text-right"><p className="text-sm text-slate-500">Nominal: R$ {parseFloat(String(a.valor_nominal_capes)).toLocaleString('pt-BR')}</p><p className="text-sm font-semibold">Complemento: {a.nivel_complemento}/3</p><p className="text-lg font-bold text-green-700">R$ {parseFloat(String(a.valor_mensal_calculado)).toLocaleString('pt-BR')}/mês</p>{(user?.perfil === 'GESTOR' || user?.perfil === 'COORDENADOR') && <button onClick={() => setNivelModal(a)} className="mt-1 text-xs text-blue-600 hover:text-blue-800 underline">Alterar Nível</button>}</div>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {a.competencias?.map((c) => (
@@ -221,7 +221,18 @@ function AlocacaoModal({ projetoId, usuarios, onClose, onSubmit, isPending }: {
   });
 
   const usuarioOptions = usuarios?.map((u) => ({ value: u.id, label: `${u.nome_completo} (${u.perfil})` })) || [];
-  const nivelAcademicoOptions = Object.keys(NOMINAL_VALUES).map((k) => ({ value: k, label: k }));
+  const nivelAcademicoOptions = Object.keys(NOMINAL_VALUES).map((k) => ({ value: k, label: `${k} (Base: R$ ${NOMINAL_VALUES[k].toLocaleString('pt-BR')})` }));
+
+  const nominal = form.watch('valor_nominal_capes') || 0;
+  const complemento = form.watch('nivel_complemento') || 0;
+  const valorEfetivo = nominal * (1 + complemento / 3);
+
+  function handleNivelAcademicoChange(v: string) {
+    form.setValue('nivel_academico', v, { shouldValidate: true });
+    if (NOMINAL_VALUES[v]) {
+      form.setValue('valor_nominal_capes', NOMINAL_VALUES[v], { shouldValidate: true });
+    }
+  }
 
   return (
     <Modal open={true} onClose={onClose} title="Alocar Colaborador"
@@ -236,29 +247,36 @@ function AlocacaoModal({ projetoId, usuarios, onClose, onSubmit, isPending }: {
       }>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Usuário</label>
-        <SelectInput value={form.watch('usuario_id')} onValueChange={(v) => form.setValue('usuario_id', v)} placeholder="Selecione..." options={usuarioOptions} />
+        <SelectInput value={form.watch('usuario_id')} onValueChange={(v) => form.setValue('usuario_id', v, { shouldValidate: true })} placeholder="Selecione..." options={usuarioOptions} />
         {form.formState.errors.usuario_id && <p className="text-red-500 text-xs mt-1">{form.formState.errors.usuario_id.message}</p>}
       </div>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Nível Acadêmico</label>
-        <SelectInput value={form.watch('nivel_academico')} onValueChange={(v) => form.setValue('nivel_academico', v)} placeholder="Selecione..." options={nivelAcademicoOptions} />
+        <SelectInput value={form.watch('nivel_academico')} onValueChange={handleNivelAcademicoChange} placeholder="Selecione..." options={nivelAcademicoOptions} />
         {form.formState.errors.nivel_academico && <p className="text-red-500 text-xs mt-1">{form.formState.errors.nivel_academico.message}</p>}
       </div>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Papel no Projeto</label>
-        <SelectInput value={form.watch('papel_projeto')} onValueChange={(v) => form.setValue('papel_projeto', v as 'PESQUISADOR' | 'BOLSISTA' | 'COORDENADOR')} options={PAPEL_OPTIONS} />
+        <SelectInput value={form.watch('papel_projeto')} onValueChange={(v) => form.setValue('papel_projeto', v as 'PESQUISADOR' | 'BOLSISTA' | 'COORDENADOR', { shouldValidate: true })} options={PAPEL_OPTIONS} />
         {form.formState.errors.papel_projeto && <p className="text-red-500 text-xs mt-1">{form.formState.errors.papel_projeto.message}</p>}
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Valor Nominal (R$)</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Valor Nominal da Bolsa CAPES (R$)</label>
         <input type="number" step="0.01" {...form.register('valor_nominal_capes', { valueAsNumber: true })}
           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
         {form.formState.errors.valor_nominal_capes && <p className="text-red-500 text-xs mt-1">{form.formState.errors.valor_nominal_capes.message}</p>}
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Complemento (0-3)</label>
-        <SelectInput value={String(form.watch('nivel_complemento'))} onValueChange={(v) => form.setValue('nivel_complemento', parseInt(v))} options={NIVEL_OPTIONS} />
+        <label className="block text-sm font-medium text-slate-700 mb-1">Complemento (k ∈ &#123;0, 1, 2, 3&#125;)</label>
+        <SelectInput value={String(form.watch('nivel_complemento'))} onValueChange={(v) => form.setValue('nivel_complemento', parseInt(v), { shouldValidate: true })} options={NIVEL_OPTIONS} />
         {form.formState.errors.nivel_complemento && <p className="text-red-500 text-xs mt-1">{form.formState.errors.nivel_complemento.message}</p>}
+      </div>
+      <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 mt-1">
+        <p className="text-xs text-slate-500 mb-1">Cálculo em Tempo Real da Remuneração Efetiva:</p>
+        <div className="flex justify-between items-center text-sm">
+          <span className="text-slate-600">{`R$ ${nominal.toLocaleString('pt-BR')} × (1 + ${complemento}/3)`}</span>
+          <span className="font-bold text-green-700 text-base">{`R$ ${valorEfetivo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/mês`}</span>
+        </div>
       </div>
     </Modal>
   );

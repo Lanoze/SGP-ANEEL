@@ -119,7 +119,7 @@ router.get('/competencias/:alocacao_id', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/baixar-individual', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
+router.post('/baixar-individual', requireRole(['GESTOR']), async (req, res) => {
   try {
     const user = req.user!;
     const parsed = baixaCompetenciaSchema.safeParse(req.body);
@@ -134,23 +134,16 @@ router.post('/baixar-individual', requireRole(['GESTOR', 'COORDENADOR']), async 
       await client.query('BEGIN');
       await setAuditContext(client, user.userId);
 
-      const competencia = await queryOne<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number; projeto_coordenador_id: string }>(
-        `SELECT cf.*, rp.id as rubrica_projeto_id, p.coordenador_id as projeto_coordenador_id
+      const competencia = await queryOne<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number }>(
+        `SELECT cf.*, rp.id as rubrica_projeto_id
          FROM competencias_folha cf
          JOIN alocacao_rh a ON cf.alocacao_rh_id = a.id
          JOIN rubricas_projeto rp ON rp.projeto_id = a.projeto_id AND rp.rubrica = 'RH'
-         JOIN projetos p ON p.id = a.projeto_id
          WHERE cf.id = $1 AND cf.status = 'PENDENTE'`,
         [competencia_id]
       );
 
       if (!competencia) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Competência não encontrada ou já liquidada' }); return; }
-
-      if (user.perfil === 'COORDENADOR' && competencia.projeto_coordenador_id !== user.userId) {
-        await client.query('ROLLBACK');
-        res.status(403).json({ error: 'Coordenador não é responsável por este projeto' });
-        return;
-      }
 
       const rubrica = await queryOne<{ saldo: number }>(
         `SELECT rp.valor_previsto - COALESCE(SUM(l.valor), 0) as saldo
@@ -159,7 +152,16 @@ router.post('/baixar-individual', requireRole(['GESTOR', 'COORDENADOR']), async 
         [competencia.rubrica_projeto_id]
       );
 
-      if (!rubrica || rubrica.saldo < competencia.valor_devido) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente' }); return; }
+      if (!rubrica || rubrica.saldo < competencia.valor_devido) {
+        await client.query('ROLLBACK');
+        res.status(400).json({
+          error: 'ESTOURO_DE_RUBRICA',
+          message: 'Saldo RH insuficiente para liquidação desta competência',
+          saldo_disponivel: rubrica ? rubrica.saldo : 0,
+          valor_solicitado: competencia.valor_devido,
+        });
+        return;
+      }
 
       const saldoAnterior = rubrica.saldo;
 
@@ -194,7 +196,7 @@ router.post('/baixar-individual', requireRole(['GESTOR', 'COORDENADOR']), async 
   }
 });
 
-router.post('/baixar-lote', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
+router.post('/baixar-lote', requireRole(['GESTOR']), async (req, res) => {
   try {
     const user = req.user!;
     const parsed = baixaLoteSchema.safeParse(req.body);
@@ -203,16 +205,6 @@ router.post('/baixar-lote', requireRole(['GESTOR', 'COORDENADOR']), async (req, 
       return;
     }
     const { projeto_id, ano, mes } = parsed.data;
-
-    if (user.perfil === 'COORDENADOR') {
-      const projeto = await queryOne<{ coordenador_id: string }>(
-        'SELECT coordenador_id FROM projetos WHERE id = $1', [projeto_id]
-      );
-      if (!projeto || projeto.coordenador_id !== user.userId) {
-        res.status(403).json({ error: 'Coordenador não é responsável por este projeto' });
-        return;
-      }
-    }
 
     const client = await pool.connect();
     try {
@@ -240,7 +232,16 @@ router.post('/baixar-lote', requireRole(['GESTOR', 'COORDENADOR']), async (req, 
         [rubrica_projeto_id]
       );
 
-      if (!rubrica || rubrica.saldo < totalFolha) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente' }); return; }
+      if (!rubrica || rubrica.saldo < totalFolha) {
+        await client.query('ROLLBACK');
+        res.status(400).json({
+          error: 'ESTOURO_DE_RUBRICA',
+          message: 'Saldo RH insuficiente para liquidação em lote',
+          saldo_disponivel: rubrica ? rubrica.saldo : 0,
+          total_solicitado: totalFolha,
+        });
+        return;
+      }
 
       const saldoAnterior = rubrica.saldo;
 
@@ -282,7 +283,7 @@ const alterarNivelSchema = z.object({
   nivel_complemento: z.number().int().min(0).max(3),
 });
 
-router.put('/alterar-nivel', requireRole(['GESTOR']), async (req, res) => {
+router.put('/alterar-nivel', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
   try {
     const user = req.user!;
     const parsed = alterarNivelSchema.safeParse(req.body);
@@ -292,8 +293,18 @@ router.put('/alterar-nivel', requireRole(['GESTOR']), async (req, res) => {
     }
     const { alocacao_id, nivel_complemento } = parsed.data;
 
-    const alocacao = await queryOne('SELECT * FROM alocacao_rh WHERE id = $1', [alocacao_id]);
+    const alocacao = await queryOne<{ id: string; projeto_id: string; valor_nominal_capes: number; valor_mensal_calculado: number; nivel_complemento: number }>('SELECT * FROM alocacao_rh WHERE id = $1', [alocacao_id]);
     if (!alocacao) { res.status(404).json({ error: 'Alocação não encontrada' }); return; }
+
+    if (user.perfil === 'COORDENADOR') {
+      const projeto = await queryOne<{ coordenador_id: string }>(
+        'SELECT coordenador_id FROM projetos WHERE id = $1', [alocacao.projeto_id]
+      );
+      if (!projeto || projeto.coordenador_id !== user.userId) {
+        res.status(403).json({ error: 'Coordenador só pode alterar níveis do seu próprio projeto' });
+        return;
+      }
+    }
 
     const valor_anterior = parseFloat(String(alocacao.valor_mensal_calculado));
     const novo_valor = calcularValorMensal(parseFloat(String(alocacao.valor_nominal_capes)), nivel_complemento);

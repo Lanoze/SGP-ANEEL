@@ -27,6 +27,7 @@ export const createLancamentoSchema = z.object({
   descricao: z.string().min(1).max(500),
   valor: z.number().positive(),
   data_despesa: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  documento_id: z.string().uuid().optional().nullable(),
 });
 
 export const createAlocacaoSchema = z.object({

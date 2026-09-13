@@ -65,6 +65,8 @@ export interface Lancamento {
   valor: number;
   data_despesa: string;
   usuario_registro_id: string;
+  documento_id?: string | null;
+  documento_nome?: string | null;
   usuario_nome?: string;
   rubrica?: CodigoRubrica;
   criado_em: string;

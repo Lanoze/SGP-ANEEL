@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS projetos (
   data_inicio     DATE NOT NULL,
   data_fim        DATE NOT NULL,
   ativo           BOOLEAN NOT NULL DEFAULT true,
-  criado_em       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  criado_em       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT chk_datas_projeto CHECK (data_fim > data_inicio)
 );
 
 -- 3. TABELA: rubricas_projeto
@@ -43,11 +44,12 @@ CREATE TABLE IF NOT EXISTS rubricas_projeto (
 -- 4. TABELA: lancamentos
 CREATE TABLE IF NOT EXISTS lancamentos (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  rubrica_projeto_id  UUID NOT NULL REFERENCES rubricas_projeto(id) ON DELETE CASCADE,
+  rubrica_projeto_id  UUID NOT NULL REFERENCES rubricas_projeto(id) ON DELETE RESTRICT,
   descricao           VARCHAR(500) NOT NULL,
   valor               NUMERIC(15,2) NOT NULL,
   data_despesa        DATE NOT NULL,
   usuario_registro_id UUID NOT NULL REFERENCES usuarios(id),
+  documento_id        UUID,
   criado_em           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -61,6 +63,7 @@ CREATE TABLE IF NOT EXISTS alocacao_rh (
   valor_nominal_capes      NUMERIC(15,2) NOT NULL,
   nivel_complemento        INTEGER NOT NULL DEFAULT 0 CHECK (nivel_complemento BETWEEN 0 AND 3),
   valor_mensal_calculado   NUMERIC(15,2) NOT NULL,
+  criado_em                TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (projeto_id, usuario_id)
 );
 
@@ -74,6 +77,7 @@ CREATE TABLE IF NOT EXISTS competencias_folha (
   status           VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' CHECK (status IN ('PENDENTE','PAGO','CANCELADO')),
   data_baixa       TIMESTAMPTZ,
   usuario_baixa_id UUID REFERENCES usuarios(id),
+  criado_em        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (alocacao_rh_id, ano, mes)
 );
 
@@ -240,6 +244,28 @@ async function migrate() {
   try {
     await client.query('BEGIN');
     await client.query(DDL);
+    await client.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'lancamentos' AND column_name = 'documento_id'
+        ) THEN
+          ALTER TABLE lancamentos ADD COLUMN documento_id UUID REFERENCES documentos_metadados(id) ON DELETE SET NULL;
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'alocacao_rh' AND column_name = 'criado_em'
+        ) THEN
+          ALTER TABLE alocacao_rh ADD COLUMN criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();
+        END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'competencias_folha' AND column_name = 'criado_em'
+        ) THEN
+          ALTER TABLE competencias_folha ADD COLUMN criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW();
+        END IF;
+      END $$;
+    `);
     await client.query('COMMIT');
     console.log('✅ Migração concluída: 9 tabelas + 13 índices + 7 triggers de auditoria');
   } catch (err) {

@@ -15,7 +15,7 @@ router.post('/', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
       res.status(400).json({ error: parsed.error.issues[0].message });
       return;
     }
-    const { rubrica_projeto_id, descricao, valor, data_despesa } = parsed.data;
+    const { rubrica_projeto_id, descricao, valor, data_despesa, documento_id } = parsed.data;
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -28,15 +28,30 @@ router.post('/', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
         [rubrica_projeto_id]
       );
       if (!rubrica) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Rubrica não encontrada' }); return; }
-      if (rubrica.saldo < valor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', saldo_disponivel: rubrica.saldo }); return; }
+      if (rubrica.saldo < valor) {
+        await client.query('ROLLBACK');
+        res.status(400).json({
+          error: 'ESTOURO_DE_RUBRICA',
+          message: 'Saldo orçamentário insuficiente para este lançamento',
+          saldo_disponivel: rubrica.saldo,
+        });
+        return;
+      }
       const lancamento = await queryOne<Lancamento>(
-        `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [rubrica_projeto_id, descricao, valor, data_despesa, user.userId]
+        `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id, documento_id)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [rubrica_projeto_id, descricao, valor, data_despesa, user.userId, documento_id || null]
       );
       await client.query('COMMIT');
       const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-      await createAuditLog({ usuario_id: user.userId, acao: 'CREATE', tabela_origem: 'lancamentos', registro_id: lancamento!.id, estado_posterior: { rubrica_projeto_id, descricao, valor, data_despesa }, endereco_ip: String(ip) });
+      await createAuditLog({
+        usuario_id: user.userId,
+        acao: 'CREATE',
+        tabela_origem: 'lancamentos',
+        registro_id: lancamento!.id,
+        estado_posterior: { rubrica_projeto_id, descricao, valor, data_despesa, documento_id: documento_id || null },
+        endereco_ip: String(ip),
+      });
       res.status(201).json(lancamento);
     } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
   } catch (error) {
@@ -51,8 +66,10 @@ router.get('/rubrica/:rubrica_projeto_id', requireAuth, async (req, res) => {
     const limit = parseInt(String(req.query.limit)) || 20;
     const offset = (page - 1) * limit;
     const lancamentos = await query<Lancamento & { total: number }>(
-      `SELECT l.*, u.nome_completo as usuario_nome, COUNT(*) OVER() as total
-       FROM lancamentos l LEFT JOIN usuarios u ON l.usuario_registro_id = u.id
+      `SELECT l.*, u.nome_completo as usuario_nome, dm.nome_arquivo as documento_nome, COUNT(*) OVER() as total
+       FROM lancamentos l
+       LEFT JOIN usuarios u ON l.usuario_registro_id = u.id
+       LEFT JOIN documentos_metadados dm ON l.documento_id = dm.id
        WHERE l.rubrica_projeto_id = $1
        ORDER BY l.data_despesa DESC LIMIT $2 OFFSET $3`,
       [req.params.rubrica_projeto_id, limit, offset]
@@ -68,10 +85,11 @@ router.get('/rubrica/:rubrica_projeto_id', requireAuth, async (req, res) => {
 router.get('/projeto/:projeto_id', requireAuth, async (req, res) => {
   try {
     const lancamentos = await query<Lancamento>(
-      `SELECT l.*, u.nome_completo as usuario_nome, rp.rubrica
+      `SELECT l.*, u.nome_completo as usuario_nome, rp.rubrica, dm.nome_arquivo as documento_nome
        FROM lancamentos l
        LEFT JOIN usuarios u ON l.usuario_registro_id = u.id
        LEFT JOIN rubricas_projeto rp ON l.rubrica_projeto_id = rp.id
+       LEFT JOIN documentos_metadados dm ON l.documento_id = dm.id
        WHERE rp.projeto_id = $1
        ORDER BY l.data_despesa DESC`,
       [req.params.projeto_id]

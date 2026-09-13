@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Progress from '@radix-ui/react-progress';
 import api from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const MAGIC_BYTES: Record<string, Uint8Array[]> = {
   '.pdf': [new Uint8Array([0x25, 0x50, 0x44, 0x46])],
@@ -12,10 +13,10 @@ const MAGIC_BYTES: Record<string, Uint8Array[]> = {
   '.docx': [new Uint8Array([0x50, 0x4b, 0x03, 0x04])],
 };
 
-function validateMagicBytes(file: File): boolean {
+function validateMagicBytes(file: File): Promise<boolean> {
   const ext = '.' + file.name.split('.').pop()?.toLowerCase();
   const expected = MAGIC_BYTES[ext];
-  if (!expected) return true;
+  if (!expected) return Promise.resolve(true);
   return new Promise<boolean>((resolve) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -24,7 +25,7 @@ function validateMagicBytes(file: File): boolean {
     };
     reader.onerror = () => resolve(false);
     reader.readAsArrayBuffer(file.slice(0, 4));
-  }) as unknown as boolean;
+  });
 }
 
 interface UploadDocumentoProps {
@@ -33,6 +34,7 @@ interface UploadDocumentoProps {
 }
 
 export default function UploadDocumento({ projetoId, onSuccess }: UploadDocumentoProps) {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [arquivo, setArquivo] = useState<File | null>(null);
@@ -134,7 +136,9 @@ export default function UploadDocumento({ projetoId, onSuccess }: UploadDocument
                   <option value="GERAL">Geral</option>
                   <option value="COMPROVANTE_LANCAMENTO">Comprovante de Lançamento</option>
                   <option value="RELATORIO_TECNICO">Relatório Técnico</option>
-                  <option value="CONTRATO_RH">Contrato de RH</option>
+                  {(user?.perfil === 'GESTOR' || user?.perfil === 'COORDENADOR') && (
+                    <option value="CONTRATO_RH">Contrato de RH</option>
+                  )}
                 </select>
               </div>
               {progress > 0 && (

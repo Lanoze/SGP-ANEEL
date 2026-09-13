@@ -6,7 +6,7 @@ import type { RubricaProjeto } from '../lib/types';
 
 const router = Router();
 
-router.get('/:id/rubricas', requireAuth, async (req, res) => {
+router.get('/:id/rubricas', requireRole(['GESTOR', 'COORDENADOR', 'PESQUISADOR']), async (req, res) => {
   try {
     const rubricas = await query<RubricaProjeto>(
       `SELECT rp.*, COALESCE(SUM(l.valor), 0) as valor_executado,

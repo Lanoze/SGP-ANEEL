@@ -129,6 +129,7 @@ function ProjetoDetalheContent() {
           {showLancamento && (
             <LancamentoModal
               rubricaId={selectedRubrica}
+              rubricas={rubricas}
               onClose={() => setShowLancamento(false)}
               onSubmit={(data) => lancamentoMutation.mutate(data)}
               isPending={lancamentoMutation.isPending}
@@ -158,7 +159,8 @@ function ProjetoDetalheContent() {
   );
 }
 
-function LancamentoModal({ rubricaId, onClose, onSubmit, isPending }: { rubricaId: string | null; onClose: () => void; onSubmit: (data: createLancamentoInput) => void; isPending: boolean }) {
+function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending }: { rubricaId: string | null; rubricas: RubricaProjeto[] | undefined; onClose: () => void; onSubmit: (data: createLancamentoInput) => void; isPending: boolean }) {
+  const rubricaLabel = rubricas?.find((r) => r.id === rubricaId);
   const form = useForm<createLancamentoInput>({
     resolver: zodResolver(createLancamentoSchema),
     defaultValues: { rubrica_projeto_id: rubricaId || '', descricao: '', valor: 0, data_despesa: '' },
@@ -177,7 +179,22 @@ function LancamentoModal({ rubricaId, onClose, onSubmit, isPending }: { rubricaI
         </>
       }>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Rubrica</label>
+        {rubricaId && rubricaLabel ? (
+          <div className="px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-700">
+            <span className="font-mono font-bold bg-slate-200 px-1.5 py-0.5 rounded mr-2">{rubricaLabel.rubrica}</span>
+            {RUBRICA_LABELS[rubricaLabel.rubrica]}
+          </div>
+        ) : (
+          <select {...form.register('rubrica_projeto_id')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+            <option value="">Selecione a rubrica...</option>
+            {rubricas?.map((r) => <option key={r.id} value={r.id}>{r.rubrica} - {RUBRICA_LABELS[r.rubrica]}</option>)}
+          </select>
+        )}
+        {form.formState.errors.rubrica_projeto_id && <p className="text-red-500 text-xs mt-1">{form.formState.errors.rubrica_projeto_id.message}</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Descricao</label>
         <input {...form.register('descricao')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
         {form.formState.errors.descricao && <p className="text-red-500 text-xs mt-1">{form.formState.errors.descricao.message}</p>}
       </div>

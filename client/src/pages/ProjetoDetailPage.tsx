@@ -227,7 +227,7 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, er
   const selectedRubrica = rubricas?.find((r) => r.id === selectedId);
   const saldoRubrica = selectedRubrica ? parseFloat(String(selectedRubrica.valor_previsto)) - parseFloat(String(selectedRubrica.valor_executado)) : null;
   const semSaldo = saldoRubrica !== null && saldoRubrica <= 0;
-  const excedeSaldo = saldoRubrica !== null && valorAtual > 0 && valorAtual > saldoRubrica;
+  const excedeSaldo = saldoRubrica !== null && (valorAtual ?? 0) > 0 && (valorAtual ?? 0) > saldoRubrica;
 
   useEffect(() => {
     if (rubricaId) form.setValue('rubrica_projeto_id', rubricaId, { shouldValidate: true });
@@ -286,7 +286,7 @@ function EditLancamentoModal({ lancamento, rubricas, onClose, onSubmit, isPendin
   const saldoRubrica = selectedRubrica ? parseFloat(String(selectedRubrica.valor_previsto)) - parseFloat(String(selectedRubrica.valor_executado)) : null;
   const valorAntigo = lancamento.rubrica_projeto_id === selectedId ? parseFloat(String(lancamento.valor)) : 0;
   const saldoComReversao = saldoRubrica !== null ? saldoRubrica + valorAntigo : null;
-  const excedeSaldo = saldoComReversao !== null && valorAtual > 0 && valorAtual > saldoComReversao;
+  const excedeSaldo = saldoComReversao !== null && (valorAtual ?? 0) > 0 && (valorAtual ?? 0) > saldoComReversao;
 
   return (
     <Modal open={true} onClose={onClose} title="Editar Lancamento"

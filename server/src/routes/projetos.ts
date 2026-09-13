@@ -1,9 +1,21 @@
 import { Router } from 'express';
-import { query, queryOne } from '../lib/db';
+import { query, queryOne, pool, setAuditContext } from '../lib/db';
 import { createAuditLog } from '../lib/audit';
 import { requireAuth, requireRole } from '../lib/rbac';
 import { createProjetoSchema } from '../lib/schemas';
 import type { Projeto } from '../lib/types';
+
+function gerarMeses(dataInicio: string, dataFim: string): { ano: number; mes: number }[] {
+  const meses: { ano: number; mes: number }[] = [];
+  const start = new Date(dataInicio);
+  const end = new Date(dataFim);
+  const current = new Date(start.getFullYear(), start.getMonth(), 1);
+  while (current <= end) {
+    meses.push({ ano: current.getFullYear(), mes: current.getMonth() + 1 });
+    current.setMonth(current.getMonth() + 1);
+  }
+  return meses;
+}
 
 const router = Router();
 
@@ -109,6 +121,42 @@ router.put('/:id', requireRole(['GESTOR']), async (req, res) => {
     }
     values.push(req.params.id);
     await query(`UPDATE projetos SET ${updates.join(', ')} WHERE id = $${idx}`, values);
+
+    if (fields.data_inicio || fields.data_fim) {
+      const newInicio = fields.data_inicio || existing.data_inicio;
+      const newFim = fields.data_fim || existing.data_fim;
+      const novosMeses = gerarMeses(newInicio, newFim);
+      const alocacoes = await query<{ id: string; valor_mensal_calculado: number }>(
+        'SELECT id, valor_mensal_calculado FROM alocacao_rh WHERE projeto_id = $1', [req.params.id]
+      );
+      for (const aloc of alocacoes) {
+        const existentes = await query<{ ano: number; mes: number; status: string }>(
+          "SELECT ano, mes, status FROM competencias_folha WHERE alocacao_rh_id = $1", [aloc.id]
+        );
+        const existenteMap = new Map(existentes.map((e) => [`${e.ano}-${e.mes}`, e.status]));
+        for (const { ano, mes } of novosMeses) {
+          const key = `${ano}-${mes}`;
+          if (!existenteMap.has(key)) {
+            await query(
+              `INSERT INTO competencias_folha (alocacao_rh_id, ano, mes, valor_devido, status)
+               VALUES ($1, $2, $3, $4, 'PENDENTE') ON CONFLICT (alocacao_rh_id, ano, mes) DO NOTHING`,
+              [aloc.id, ano, mes, aloc.valor_mensal_calculado]
+            );
+          }
+        }
+        for (const [key, status] of existenteMap) {
+          const [anoStr, mesStr] = key.split('-');
+          const dentroDoRange = novosMeses.some((m) => m.ano === parseInt(anoStr) && m.mes === parseInt(mesStr));
+          if (!dentroDoRange && status === 'PENDENTE') {
+            await query(
+              "DELETE FROM competencias_folha WHERE alocacao_rh_id = $1 AND ano = $2 AND mes = $3 AND status = 'PENDENTE'",
+              [aloc.id, parseInt(anoStr), parseInt(mesStr)]
+            );
+          }
+        }
+      }
+    }
+
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
     await createAuditLog({ usuario_id: user.userId, acao: 'UPDATE', tabela_origem: 'projetos', registro_id: req.params.id, estado_anterior: { titulo: existing.titulo }, estado_posterior: fields, endereco_ip: String(ip) });
     res.json({ message: 'Projeto atualizado' });

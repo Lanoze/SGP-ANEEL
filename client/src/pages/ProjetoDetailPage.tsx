@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { Modal } from '../components/FormComponents';
 import { createLancamentoSchema, createProjetoSchema, type createLancamentoInput, type createProjetoInput } from '../lib/schemas';
 import type { Projeto, RubricaProjeto, Lancamento } from '../types';
@@ -59,6 +60,7 @@ function ProjetoDetalheContent() {
     <div className="p-6">
       {projeto && (
         <>
+          <Breadcrumbs items={[{ label: 'Projetos', to: '/projetos' }, { label: projeto.codigo_aneel }]} />
           <div className="mb-6">
             <div className="flex justify-between items-start">
               <div>

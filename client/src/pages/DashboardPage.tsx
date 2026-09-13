@@ -4,6 +4,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
+import Breadcrumbs from '../components/Breadcrumbs';
 import type { Projeto, RubricaProjeto, Usuario } from '../types';
 
 const RUBRICA_LABELS: Record<string, string> = {
@@ -54,6 +55,7 @@ function DashboardContent() {
 
   return (
     <div className="p-6">
+      <Breadcrumbs items={[{ label: 'Dashboard' }]} />
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Dashboard</h1>
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
         <Card titulo="Projetos Ativos" valor={projetos?.length?.toString() ?? '0'} cor="blue" />

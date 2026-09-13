@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
+import Breadcrumbs from '../components/Breadcrumbs';
 import type { Projeto } from '../types';
 
 export default function FolhaPage() {
@@ -25,6 +26,7 @@ function FolhaContent() {
 
   return (
     <div className="p-8">
+      <Breadcrumbs items={[{ label: 'Folha' }]} />
       <h1 className="text-2xl font-bold mb-6">Folha de Pagamento</h1>
       <p className="text-gray-600 mb-6">Selecione um projeto para gerenciar a folha:</p>
       <div className="grid gap-4">

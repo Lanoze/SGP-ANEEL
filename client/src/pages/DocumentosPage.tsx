@@ -4,8 +4,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
+import Breadcrumbs from '../components/Breadcrumbs';
 import UploadDocumento from '../components/UploadDocumento';
-import type { DocumentoMetadados } from '../types';
+import type { DocumentoMetadados, Projeto } from '../types';
 
 const CATEGORIA_LABELS: Record<string, string> = { GERAL: 'Geral', COMPROVANTE_LANCAMENTO: 'Comprovante', RELATORIO_TECNICO: 'Relatório Técnico', CONTRATO_RH: 'Contrato RH' };
 const CATEGORIA_CORES: Record<string, string> = { GERAL: 'bg-slate-100 text-slate-700', COMPROVANTE_LANCAMENTO: 'bg-blue-100 text-blue-700', RELATORIO_TECNICO: 'bg-purple-100 text-purple-700', CONTRATO_RH: 'bg-red-100 text-red-700' };
@@ -31,6 +32,8 @@ function DocumentosContent() {
   const queryClient = useQueryClient();
   const canSeeContratos = CAN_ACCESS_CONTRATOS.includes(user?.perfil ?? '');
 
+  const { data: projeto } = useQuery<Projeto>({ queryKey: ['projeto', projetoId], queryFn: async () => (await api.get<Projeto>(`/projetos/${projetoId}`)).data, enabled: !!projetoId });
+
   const categoriasVisiveis = Object.entries(CATEGORIA_LABELS).filter(([key]) => {
     if (key === 'CONTRATO_RH' && !canSeeContratos) return false;
     return true;
@@ -52,6 +55,7 @@ function DocumentosContent() {
 
   return (
     <div className="p-6">
+      <Breadcrumbs items={[{ label: 'Projetos', to: '/projetos' }, { label: projeto?.codigo_aneel || '...', to: `/projetos/${projetoId}` }, { label: 'Documentos' }]} />
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Documentos do Projeto</h1>
         {user?.perfil !== 'BOLSISTA' && <button onClick={() => setShowUpload(!showUpload)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">{showUpload ? 'Fechar' : '+ Enviar Documento'}</button>}

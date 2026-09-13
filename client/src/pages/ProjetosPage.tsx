@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { Modal } from '../components/FormComponents';
 import { createProjetoSchema, type createProjetoInput } from '../lib/schemas';
 import type { Projeto } from '../types';
@@ -39,6 +40,7 @@ function ProjetosContent() {
 
   return (
     <div className="p-6">
+      <Breadcrumbs items={[{ label: 'Projetos' }]} />
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Projetos</h1>
         {isGestor && <button onClick={() => setShowCreate(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">+ Novo Projeto</button>}

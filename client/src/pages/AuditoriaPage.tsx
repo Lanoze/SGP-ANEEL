@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
+import Breadcrumbs from '../components/Breadcrumbs';
 import type { AuditLog, Usuario } from '../types';
 
 export default function AuditoriaPage() {
@@ -47,6 +48,7 @@ function AuditoriaContent() {
 
   return (
     <div className="p-6">
+      <Breadcrumbs items={[{ label: 'Auditoria' }]} />
       <h1 className="text-2xl font-bold text-slate-900 mb-6">Trilha de Auditoria</h1>
 
       <div className="bg-white rounded-xl shadow p-4 mb-6">

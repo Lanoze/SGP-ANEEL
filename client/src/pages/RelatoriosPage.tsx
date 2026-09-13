@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
+import Breadcrumbs from '../components/Breadcrumbs';
 
 const RUBRICA_LABELS: Record<string, string> = {
   RH: 'Recursos Humanos', ST: 'Serviços de Terceiros', MC: 'Materiais de Consumo',
@@ -86,7 +87,10 @@ function RelatoriosContent() {
         }
       `}</style>
       <div className="flex justify-between items-center mb-6 no-print">
-        <h1 className="text-2xl font-bold text-slate-900">Relatórios Gerenciais</h1>
+        <div>
+          <Breadcrumbs items={[{ label: 'Relatórios' }]} />
+          <h1 className="text-2xl font-bold text-slate-900">Relatórios Gerenciais</h1>
+        </div>
         <button onClick={() => window.print()} className="px-4 py-2 bg-slate-700 text-white rounded-lg text-sm hover:bg-slate-800">Imprimir / PDF</button>
       </div>
 

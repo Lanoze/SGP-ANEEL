@@ -6,9 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
+import Breadcrumbs from '../components/Breadcrumbs';
 import { Modal, SelectInput } from '../components/FormComponents';
 import { createAlocacaoSchema, type createAlocacaoInput } from '../lib/schemas';
-import type { AlocacaoRH, RubricaProjeto, CompetenciaFolha, Usuario } from '../types';
+import type { AlocacaoRH, RubricaProjeto, CompetenciaFolha, Usuario, Projeto } from '../types';
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 const NOMINAL_VALUES: Record<string, number> = { 'Iniciação Científica': 700, 'Mestrado': 2100, 'Doutorado': 3100, 'Pós-Doutorado': 5200, 'Pesquisador Sênior': 6500 };
@@ -33,6 +34,7 @@ function FolhaContent() {
   const [nivelModal, setNivelModal] = useState<AlocacaoRH | null>(null);
 
   const { data: rubricas } = useQuery({ queryKey: ['rubricas', projeto_id], queryFn: async () => (await api.get<RubricaProjeto[]>(`/projetos/${projeto_id}/rubricas`)).data, enabled: !!projeto_id });
+  const { data: projeto } = useQuery<Projeto>({ queryKey: ['projeto', projeto_id], queryFn: async () => (await api.get<Projeto>(`/projetos/${projeto_id}`)).data, enabled: !!projeto_id });
   const { data: folha } = useQuery({ queryKey: ['folha', projeto_id], queryFn: async () => (await api.get<AlocacaoRH[]>(`/folha/folha/${projeto_id}`)).data, enabled: !!projeto_id });
   const { data: usuarios } = useQuery<Usuario[]>({ queryKey: ['usuarios'], queryFn: async () => (await api.get('/usuarios')).data });
 
@@ -68,6 +70,7 @@ function FolhaContent() {
 
   return (
     <div className="p-6">
+      <Breadcrumbs items={[{ label: 'Folha', to: '/folha' }, { label: projeto?.codigo_aneel || '...' }]} />
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Folha de Pagamento</h1>

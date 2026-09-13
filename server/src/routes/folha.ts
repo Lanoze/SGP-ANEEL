@@ -25,6 +25,42 @@ function gerarMeses(dataInicio: string, dataFim: string): { ano: number; mes: nu
 
 router.get('/folha/:projeto_id', requireAuth, async (req, res) => {
   try {
+    const projeto = await queryOne<{ data_inicio: string; data_fim: string }>(
+      'SELECT data_inicio, data_fim FROM projetos WHERE id = $1', [req.params.projeto_id]
+    );
+    if (projeto) {
+      const novosMeses = gerarMeses(projeto.data_inicio, projeto.data_fim);
+      const alocacoes = await query<{ id: string; valor_mensal_calculado: number }>(
+        'SELECT id, valor_mensal_calculado FROM alocacao_rh WHERE projeto_id = $1', [req.params.projeto_id]
+      );
+      for (const aloc of alocacoes) {
+        const existentes = await query<{ ano: number; mes: number; status: string }>(
+          'SELECT ano, mes, status FROM competencias_folha WHERE alocacao_rh_id = $1', [aloc.id]
+        );
+        const existenteMap = new Map(existentes.map((e) => [`${e.ano}-${e.mes}`, e.status]));
+        for (const { ano, mes } of novosMeses) {
+          const key = `${ano}-${mes}`;
+          if (!existenteMap.has(key)) {
+            await query(
+              `INSERT INTO competencias_folha (alocacao_rh_id, ano, mes, valor_devido, status)
+               VALUES ($1, $2, $3, $4, 'PENDENTE') ON CONFLICT (alocacao_rh_id, ano, mes) DO NOTHING`,
+              [aloc.id, ano, mes, aloc.valor_mensal_calculado]
+            );
+          }
+        }
+        for (const [key, status] of existenteMap) {
+          const [anoStr, mesStr] = key.split('-');
+          const dentroDoRange = novosMeses.some((m) => m.ano === parseInt(anoStr) && m.mes === parseInt(mesStr));
+          if (!dentroDoRange && status === 'PENDENTE') {
+            await query(
+              "DELETE FROM competencias_folha WHERE alocacao_rh_id = $1 AND ano = $2 AND mes = $3 AND status = 'PENDENTE'",
+              [aloc.id, parseInt(anoStr), parseInt(mesStr)]
+            );
+          }
+        }
+      }
+    }
+
     const folha = await query(
       `SELECT a.*, u.nome_completo, u.cpf,
          (SELECT json_agg(json_build_object(

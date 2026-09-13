@@ -23,10 +23,10 @@ export const createProjetoSchema = z.object({
 });
 
 export const createLancamentoSchema = z.object({
-  rubrica_projeto_id: z.string().uuid(),
-  descricao: z.string().min(1).max(500),
-  valor: z.number().positive(),
-  data_despesa: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  rubrica_projeto_id: z.string().uuid('Selecione uma rubrica valida'),
+  descricao: z.string().min(1, 'Descricao e obrigatoria').max(500),
+  valor: z.number({ message: 'Valor e obrigatorio' }).positive('Valor deve ser maior que zero'),
+  data_despesa: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data invalida'),
 });
 
 export const createAlocacaoSchema = z.object({

@@ -83,4 +83,61 @@ router.get('/projeto/:projeto_id', requireAuth, async (req, res) => {
   }
 });
 
+router.put('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
+  try {
+    const user = req.user!;
+    const { id } = req.params;
+    const parsed = createLancamentoSchema.partial().omit({ rubrica_projeto_id: true }).safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+    const fields = parsed.data;
+    const keys = Object.keys(fields);
+    if (keys.length === 0) { res.status(400).json({ error: 'Nenhum campo para atualizar' }); return; }
+    const existing = await queryOne<Lancamento>(`SELECT * FROM lancamentos WHERE id = $1`, [id]);
+    if (!existing) { res.status(404).json({ error: 'Lancamento nao encontrado' }); return; }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await setAuditContext(client, user.userId);
+      const setClauses = keys.map((k, i) => `${k} = $${i + 1}`);
+      const values = keys.map((k) => (fields as Record<string, unknown>)[k]);
+      const updated = await queryOne<Lancamento>(
+        `UPDATE lancamentos SET ${setClauses.join(', ')} WHERE id = $${keys.length + 1} RETURNING *`,
+        [...values, id]
+      );
+      await client.query('COMMIT');
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+      await createAuditLog({ usuario_id: user.userId, acao: 'UPDATE', tabela_origem: 'lancamentos', registro_id: id, estado_anterior: { descricao: existing.descricao, valor: existing.valor, data_despesa: existing.data_despesa }, estado_posterior: fields, endereco_ip: String(ip) });
+      res.json(updated);
+    } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+  } catch (error) {
+    console.error('Update lancamento error:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
+router.delete('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
+  try {
+    const user = req.user!;
+    const { id } = req.params;
+    const existing = await queryOne<Lancamento>(`SELECT * FROM lancamentos WHERE id = $1`, [id]);
+    if (!existing) { res.status(404).json({ error: 'Lancamento nao encontrado' }); return; }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await setAuditContext(client, user.userId);
+      await client.query(`DELETE FROM lancamentos WHERE id = $1`, [id]);
+      await client.query('COMMIT');
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+      await createAuditLog({ usuario_id: user.userId, acao: 'DELETE', tabela_origem: 'lancamentos', registro_id: id, estado_anterior: { descricao: existing.descricao, valor: existing.valor, data_despesa: existing.data_despesa, rubrica_projeto_id: existing.rubrica_projeto_id }, endereco_ip: String(ip) });
+      res.json({ success: true });
+    } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+  } catch (error) {
+    console.error('Delete lancamento error:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
 export default router;

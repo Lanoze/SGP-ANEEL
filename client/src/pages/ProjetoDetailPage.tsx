@@ -31,8 +31,10 @@ function ProjetoDetalheContent() {
   const navigate = useNavigate();
   const [showLancamento, setShowLancamento] = useState(false);
   const [selectedRubrica, setSelectedRubrica] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [editingProjeto, setEditingProjeto] = useState(false);
+  const [deletingProjeto, setDeletingProjeto] = useState(false);
+  const [editingLancamento, setEditingLancamento] = useState<Lancamento | null>(null);
+  const [deletingLancamento, setDeletingLancamento] = useState<Lancamento | null>(null);
   const isGestor = user?.perfil === 'GESTOR';
   const canCreateLancamento = user?.perfil === 'GESTOR' || user?.perfil === 'COORDENADOR';
   const canViewRubricas = user?.perfil !== 'BOLSISTA';
@@ -48,9 +50,21 @@ function ProjetoDetalheContent() {
     onError: (err: unknown) => { const msg = (err && typeof err === 'object' && 'response' in err) ? (err as { response: { data?: { error?: string } } }).response?.data?.error || 'Erro ao registrar lançamento' : 'Erro ao registrar lançamento'; setLancamentoError(msg); },
   });
 
+  const updateLancamentoMutation = useMutation({
+    mutationFn: async ({ id: lancId, data }: { id: string; data: Partial<createLancamentoInput> }) => (await api.put(`/lancamentos/${lancId}`, data)).data,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rubricas'] }); queryClient.invalidateQueries({ queryKey: ['lancamentos'] }); setEditingLancamento(null); },
+    onError: (err: unknown) => { const msg = (err && typeof err === 'object' && 'response' in err) ? (err as { response: { data?: { error?: string } } }).response?.data?.error || 'Erro ao atualizar' : 'Erro ao atualizar'; alert(msg); },
+  });
+
+  const deleteLancamentoMutation = useMutation({
+    mutationFn: async (lancId: string) => (await api.delete(`/lancamentos/${lancId}`)).data,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rubricas'] }); queryClient.invalidateQueries({ queryKey: ['lancamentos'] }); setDeletingLancamento(null); },
+    onError: (err: unknown) => { const msg = (err && typeof err === 'object' && 'response' in err) ? (err as { response: { data?: { error?: string } } }).response?.data?.error || 'Erro ao excluir' : 'Erro ao excluir'; alert(msg); },
+  });
+
   const updateMutation = useMutation({
     mutationFn: async (data: Partial<createProjetoInput>) => (await api.put(`/projetos/${id}`, data)).data,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['projeto', id] }); queryClient.invalidateQueries({ queryKey: ['projetos'] }); setEditing(false); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['projeto', id] }); queryClient.invalidateQueries({ queryKey: ['projetos'] }); setEditingProjeto(false); },
   });
 
   const deleteMutation = useMutation({
@@ -73,18 +87,18 @@ function ProjetoDetalheContent() {
               </div>
               {isGestor && (
                 <div className="flex gap-2">
-                  <button onClick={() => setEditing(true)} className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-300">Editar</button>
-                  <button onClick={() => setDeleting(true)} className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-300">Excluir</button>
+                  <button onClick={() => setEditingProjeto(true)} className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-300">Editar</button>
+                  <button onClick={() => setDeletingProjeto(true)} className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-300">Excluir</button>
                 </div>
               )}
             </div>
-            <Link to={`/projetos/${id}/documentos`} className="inline-block mt-2 text-sm text-blue-600 hover:text-blue-800">📁 Gerenciar Documentos</Link>
+            <Link to={`/projetos/${id}/documentos`} className="inline-block mt-2 text-sm text-blue-600 hover:text-blue-800">Gerenciar Documentos</Link>
           </div>
           {canViewRubricas && (
-          <div className="bg-white rounded-xl shadow p-6 mb-6">
+          <div className="mb-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Rubricas Orçamentárias</h2>
-              {canCreateLancamento && <button onClick={() => setShowLancamento(true)} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700">+ Novo Lançamento</button>}
+              <h2 className="text-lg font-semibold">Rubricas Orcamentarias</h2>
+              {canCreateLancamento && <button onClick={() => setShowLancamento(true)} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700">+ Novo Lancamento</button>}
             </div>
             <div className="grid gap-3">
               {rubricas?.map((r) => {
@@ -92,41 +106,59 @@ function ProjetoDetalheContent() {
                 const executado = parseFloat(String(r.valor_executado));
                 const pct = previsto > 0 ? (executado / previsto) * 100 : 0;
                 const cor = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-green-500';
+                const isSelected = selectedRubrica === r.id;
                 return (
-                  <div key={r.id} className={`border rounded-lg p-4 cursor-pointer transition-all ${selectedRubrica === r.id ? 'border-blue-500 bg-blue-50' : 'hover:border-slate-400'}`} onClick={() => setSelectedRubrica(selectedRubrica === r.id ? null : r.id)}>
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-sm bg-slate-100 px-2 py-1 rounded">{r.rubrica}</span>
-                        <span className="text-sm text-slate-600">{RUBRICA_LABELS[r.rubrica]}</span>
+                  <div key={r.id} className="bg-white rounded-xl shadow">
+                    <div className={`border rounded-lg p-4 cursor-pointer transition-all ${isSelected ? 'border-blue-500 bg-blue-50' : 'hover:border-slate-400'}`} onClick={() => setSelectedRubrica(isSelected ? null : r.id)}>
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono font-bold text-sm bg-slate-100 px-2 py-1 rounded">{r.rubrica}</span>
+                          <span className="text-sm text-slate-600">{RUBRICA_LABELS[r.rubrica]}</span>
+                        </div>
+                        <span className="text-sm font-medium">{pct.toFixed(1)}%</span>
                       </div>
-                      <span className="text-sm font-medium">{pct.toFixed(1)}%</span>
+                      <div className="flex gap-6 text-sm text-slate-500 mt-2">
+                        <span>Previsto: R$ {previsto.toLocaleString('pt-BR')}</span>
+                        <span>Executado: R$ {executado.toLocaleString('pt-BR')}</span>
+                        <span>Saldo: R$ {(previsto - executado).toLocaleString('pt-BR')}</span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-2 mt-2"><div className={`${cor} h-2 rounded-full`} style={{ width: `${Math.min(pct, 100)}%` }} /></div>
                     </div>
-                    <div className="flex gap-6 text-sm text-slate-500 mt-2">
-                      <span>Previsto: R$ {previsto.toLocaleString('pt-BR')}</span>
-                      <span>Executado: R$ {executado.toLocaleString('pt-BR')}</span>
-                      <span>Saldo: R$ {(previsto - executado).toLocaleString('pt-BR')}</span>
-                    </div>
-                    <div className="w-full bg-slate-200 rounded-full h-2 mt-2"><div className={`${cor} h-2 rounded-full`} style={{ width: `${Math.min(pct, 100)}%` }} /></div>
+                    {isSelected && canViewRubricas && (
+                      <div className="border-t px-4 py-3">
+                        <h3 className="text-sm font-semibold text-slate-700 mb-2">Lancamentos</h3>
+                        {!lancamentos ? (
+                          <p className="text-slate-400 text-xs">Carregando...</p>
+                        ) : lancamentos.length === 0 ? (
+                          <p className="text-slate-400 text-xs">Nenhum lancamento registrado.</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {lancamentos.map((l) => (
+                              <div key={l.id} className="flex justify-between items-center py-2 border-b border-slate-100 last:border-0">
+                                <div>
+                                  <p className="font-medium text-sm">{l.descricao}</p>
+                                  <p className="text-xs text-slate-500">{l.data_despesa} · {l.usuario_nome}</p>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-sm font-semibold text-red-600">- R$ {parseFloat(String(l.valor)).toLocaleString('pt-BR')}</span>
+                                  {canCreateLancamento && (
+                                    <div className="flex gap-1">
+                                      <button onClick={() => setEditingLancamento(l)} className="text-xs text-blue-600 hover:text-blue-800 px-1">Editar</button>
+                                      <button onClick={() => setDeletingLancamento(l)} className="text-xs text-red-600 hover:text-red-800 px-1">Excluir</button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </div>
           </div>
-          )}
-          {selectedRubrica && canViewRubricas && lancamentos && (
-            <div className="bg-white rounded-xl shadow p-6">
-              <h2 className="text-lg font-semibold mb-4">Extrato de Lançamentos</h2>
-              {lancamentos.length === 0 ? <p className="text-slate-500 text-sm">Nenhum lançamento registrado.</p> : (
-                <div className="space-y-2">
-                  {lancamentos.map((l) => (
-                    <div key={l.id} className="flex justify-between items-center border-b py-2">
-                      <div><p className="font-medium text-sm">{l.descricao}</p><p className="text-xs text-slate-500">{l.data_despesa} · {l.usuario_nome}</p></div>
-                      <span className="text-sm font-semibold text-red-600">- R$ {parseFloat(String(l.valor)).toLocaleString('pt-BR')}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
           )}
           {showLancamento && (
             <LancamentoModal
@@ -138,19 +170,35 @@ function ProjetoDetalheContent() {
               error={lancamentoError}
             />
           )}
-          {editing && projeto && (
+          {editingLancamento && (
+            <EditLancamentoModal
+              lancamento={editingLancamento}
+              onClose={() => setEditingLancamento(null)}
+              onSubmit={(data) => updateLancamentoMutation.mutate({ id: editingLancamento.id, data })}
+              isPending={updateLancamentoMutation.isPending}
+            />
+          )}
+          {deletingLancamento && (
+            <ConfirmDeleteLancamentoModal
+              lancamento={deletingLancamento}
+              onClose={() => setDeletingLancamento(null)}
+              onConfirm={() => deleteLancamentoMutation.mutate(deletingLancamento.id)}
+              isPending={deleteLancamentoMutation.isPending}
+            />
+          )}
+          {editingProjeto && projeto && (
             <EditProjetoModal
               projeto={projeto}
-              onClose={() => setEditing(false)}
+              onClose={() => setEditingProjeto(false)}
               onSubmit={(data) => updateMutation.mutate(data)}
               isPending={updateMutation.isPending}
               error={updateMutation.error?.message}
             />
           )}
-          {deleting && (
+          {deletingProjeto && (
             <ConfirmDeleteProjetoModal
               titulo={projeto?.titulo || ''}
-              onClose={() => setDeleting(false)}
+              onClose={() => setDeletingProjeto(false)}
               onConfirm={() => deleteMutation.mutate()}
               isPending={deleteMutation.isPending}
               error={deleteMutation.error?.message}
@@ -175,7 +223,7 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, er
   }, [rubricaId, form]);
 
   return (
-    <Modal open={true} onClose={onClose} title="Novo Lançamento"
+    <Modal open={true} onClose={onClose} title="Novo Lancamento"
       footer={
         <>
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
@@ -216,6 +264,61 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, er
         {form.formState.errors.data_despesa && <p className="text-red-500 text-xs mt-1">{form.formState.errors.data_despesa.message}</p>}
       </div>
       {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
+    </Modal>
+  );
+}
+
+function EditLancamentoModal({ lancamento, onClose, onSubmit, isPending }: { lancamento: Lancamento; onClose: () => void; onSubmit: (data: Partial<createLancamentoInput>) => void; isPending: boolean }) {
+  const form = useForm<Pick<createLancamentoInput, 'descricao' | 'valor' | 'data_despesa'>>({
+    resolver: zodResolver(createLancamentoSchema.pick({ descricao: true, valor: true, data_despesa: true })),
+    defaultValues: { descricao: lancamento.descricao, valor: parseFloat(String(lancamento.valor)), data_despesa: lancamento.data_despesa?.split('T')[0] || '' },
+    mode: 'onChange',
+  });
+
+  return (
+    <Modal open={true} onClose={onClose} title="Editar Lancamento"
+      footer={
+        <>
+          <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
+          <button onClick={form.handleSubmit(onSubmit)} disabled={isPending || !form.formState.isValid}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+            {isPending ? 'Salvando...' : 'Salvar'}
+          </button>
+        </>
+      }>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Descricao</label>
+        <input {...form.register('descricao')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        {form.formState.errors.descricao && <p className="text-red-500 text-xs mt-1">{form.formState.errors.descricao.message}</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label>
+        <input type="number" step="0.01" min="0.01" {...form.register('valor', { valueAsNumber: true })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        {form.formState.errors.valor && <p className="text-red-500 text-xs mt-1">{form.formState.errors.valor.message}</p>}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>
+        <input type="date" {...form.register('data_despesa')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        {form.formState.errors.data_despesa && <p className="text-red-500 text-xs mt-1">{form.formState.errors.data_despesa.message}</p>}
+      </div>
+    </Modal>
+  );
+}
+
+function ConfirmDeleteLancamentoModal({ lancamento, onClose, onConfirm, isPending }: { lancamento: Lancamento; onClose: () => void; onConfirm: () => void; isPending: boolean }) {
+  return (
+    <Modal open={true} onClose={onClose} title="Excluir Lancamento"
+      footer={
+        <>
+          <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
+          <button onClick={onConfirm} disabled={isPending}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50">
+            {isPending ? 'Excluindo...' : 'Excluir'}
+          </button>
+        </>
+      }>
+      <p className="text-sm text-slate-600">Tem certeza que deseja excluir o lancamento <strong>{lancamento.descricao}</strong>?</p>
+      <p className="text-xs text-slate-500 mt-1">Valor: R$ {parseFloat(String(lancamento.valor)).toLocaleString('pt-BR')} · {lancamento.data_despesa}</p>
     </Modal>
   );
 }

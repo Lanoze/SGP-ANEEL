@@ -12,10 +12,10 @@ const MAGIC_BYTES: Record<string, Uint8Array[]> = {
   '.docx': [new Uint8Array([0x50, 0x4b, 0x03, 0x04])],
 };
 
-function validateMagicBytes(file: File): boolean {
+function validateMagicBytes(file: File): Promise<boolean> {
   const ext = '.' + file.name.split('.').pop()?.toLowerCase();
   const expected = MAGIC_BYTES[ext];
-  if (!expected) return true;
+  if (!expected) return Promise.resolve(true);
   return new Promise<boolean>((resolve) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -24,7 +24,7 @@ function validateMagicBytes(file: File): boolean {
     };
     reader.onerror = () => resolve(false);
     reader.readAsArrayBuffer(file.slice(0, 4));
-  }) as unknown as boolean;
+  });
 }
 
 interface UploadDocumentoProps {
@@ -41,8 +41,6 @@ export default function UploadDocumento({ projetoId, onSuccess }: UploadDocument
   const [error, setError] = useState('');
   const [validating, setValidating] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-
-  const CHUNK_SIZE = 1024 * 1024;
 
   const handleFile = useCallback((file: File) => {
     if (file.size > 50 * 1024 * 1024) { setError('Arquivo excede 50MB'); return; }
@@ -82,34 +80,16 @@ export default function UploadDocumento({ projetoId, onSuccess }: UploadDocument
       }
       setValidating(false);
 
-      const totalChunks = Math.ceil(arquivo.size / CHUNK_SIZE);
-      const fileId = crypto.randomUUID();
+      const formData = new FormData();
+      formData.append('file', arquivo);
+      formData.append('categoria', categoria);
 
-      for (let i = 0; i < totalChunks; i++) {
-        const start = i * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, arquivo.size);
-        const chunk = arquivo.slice(start, end);
-
-        const formData = new FormData();
-        formData.append('chunk', chunk);
-        formData.append('fileId', fileId);
-        formData.append('fileName', arquivo.name);
-        formData.append('fileSize', String(arquivo.size));
-        formData.append('chunkIndex', String(i));
-        formData.append('totalChunks', String(totalChunks));
-        formData.append('categoria', categoria);
-        formData.append('projetoId', projetoId);
-
-        await api.post('/documentos/upload-stream', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          onUploadProgress: (e) => {
-            if (e.total) {
-              const chunkProgress = (e.loaded / e.total) * (100 / totalChunks);
-              setProgress(Math.min(((i + chunkProgress / (100 / totalChunks)) / totalChunks) * 100, 100));
-            }
-          },
-        });
-      }
+      await api.post(`/documentos/${projetoId}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (e) => {
+          if (e.total) setProgress(Math.round((e.loaded / e.total) * 100));
+        },
+      });
 
       setProgress(100);
       return { success: true };
@@ -153,7 +133,7 @@ export default function UploadDocumento({ projetoId, onSuccess }: UploadDocument
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium text-sm">{arquivo.name}</p>
-                  <p className="text-xs text-slate-500">{(arquivo.size / 1024).toFixed(1)} KB · Chunks de {(CHUNK_SIZE / 1024 / 1024).toFixed(0)}MB</p>
+                  <p className="text-xs text-slate-500">{(arquivo.size / 1024).toFixed(1)} KB</p>
                 </div>
                 <button onClick={() => { setArquivo(null); setProgress(0); }} className="text-red-500 text-sm">Remover</button>
               </div>
@@ -181,7 +161,7 @@ export default function UploadDocumento({ projetoId, onSuccess }: UploadDocument
       {arquivo && progress === 0 && (
         <button onClick={() => uploadMutation.mutate()} disabled={uploadMutation.isPending}
           className="mt-3 w-full bg-blue-600 text-white py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
-          {uploadMutation.isPending ? 'Enviando chunks...' : 'Enviar'}
+          {uploadMutation.isPending ? 'Enviando...' : 'Enviar'}
         </button>
       )}
     </div>

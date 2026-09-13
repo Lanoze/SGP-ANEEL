@@ -34,8 +34,8 @@ export const createAlocacaoSchema = z.object({
   usuario_id: z.string().uuid(),
   papel_projeto: z.enum(['GESTOR', 'COORDENADOR', 'PESQUISADOR', 'BOLSISTA']),
   nivel_academico: z.string().min(1).max(100),
-  valor_nominal_capes: z.number().positive(),
-  nivel_complemento: z.number().int().min(0).max(3),
+  valor_nominal_capes: z.number({ message: 'Valor nominal é obrigatório' }).positive('Valor nominal deve ser maior que zero'),
+  nivel_complemento: z.number({ message: 'Nível é obrigatório' }).int().min(0).max(3),
 });
 
 export const baixaCompetenciaSchema = z.object({

@@ -21,6 +21,24 @@ interface TestResult {
   duration: number;
 }
 
+interface Projeto {
+  id: string;
+  codigo_aneel: string;
+  titulo: string;
+}
+
+interface RubricaProjeto {
+  id: string;
+  rubrica: string;
+  valor_previsto: string;
+  valor_executado: string;
+}
+
+interface Alocacao {
+  competencias?: { id: string; status: string }[];
+  nome_completo: string;
+}
+
 let token = '';
 
 async function login(): Promise<void> {
@@ -30,7 +48,7 @@ async function login(): Promise<void> {
     body: JSON.stringify({ email: TEST_EMAIL, senha: TEST_SENHA }),
   });
   if (!res.ok) throw new Error(`Login failed: ${res.status}`);
-  const data = await res.json();
+  const data = await res.json() as { token: string };
   token = data.token;
 }
 
@@ -47,13 +65,14 @@ async function testConcurrentBaixa(): Promise<TestResult> {
   const start = Date.now();
   try {
     const { data: projetos } = await api('GET', '/projetos');
-    if (!(projetos as any[]).length) return { name: 'Baixa Concorrente', passed: false, details: 'Nenhum projeto', duration: 0 };
+    const projetoList = projetos as Projeto[];
+    if (!projetoList.length) return { name: 'Baixa Concorrente', passed: false, details: 'Nenhum projeto', duration: 0 };
 
-    const projetoId = (projetos as any[])[0].id;
+    const projetoId = projetoList[0].id;
     const { data: folha } = await api('GET', `/folha/folha/${projetoId}`);
 
     const pendencias: { competenciaId: string; nome: string }[] = [];
-    for (const a of folha as any[]) {
+    for (const a of folha as Alocacao[]) {
       for (const c of a.competencias ?? []) {
         if (c.status === 'PENDENTE') pendencias.push({ competenciaId: c.id, nome: a.nome_completo });
       }
@@ -62,7 +81,7 @@ async function testConcurrentBaixa(): Promise<TestResult> {
     if (pendencias.length === 0) return { name: 'Baixa Concorrente', passed: true, details: 'Nenhuma pendência (ok)', duration: Date.now() - start };
 
     const CONCURRENT = Math.min(pendencias.length, 5);
-    const promises = [];
+    const promises: Promise<{ status: number; data: unknown }>[] = [];
     let successCount = 0;
     let rejectedCount = 0;
 
@@ -95,12 +114,14 @@ async function testSaldoNegativo(): Promise<TestResult> {
   const start = Date.now();
   try {
     const { data: projetos } = await api('GET', '/projetos');
-    if (!(projetos as any[]).length) return { name: 'Bloqueio Saldo Negativo', passed: false, details: 'Nenhum projeto', duration: 0 };
+    const projetoList = projetos as Projeto[];
+    if (!projetoList.length) return { name: 'Bloqueio Saldo Negativo', passed: false, details: 'Nenhum projeto', duration: 0 };
 
-    const projetoId = (projetos as any[])[0].id;
+    const projetoId = projetoList[0].id;
     const { data: rubricas } = await api('GET', `/projetos/${projetoId}/rubricas`);
 
-    const rhRubrica = (rubricas as any[]).find((r: any) => r.rubrica === 'RH');
+    const rubricaList = rubricas as RubricaProjeto[];
+    const rhRubrica = rubricaList.find((r) => r.rubrica === 'RH');
     if (!rhRubrica) return { name: 'Bloqueio Saldo Negativo', passed: true, details: 'Rubrica RH não encontrada (ok)', duration: Date.now() - start };
 
     const saldo = parseFloat(rhRubrica.valor_previsto) - parseFloat(rhRubrica.valor_executado);
@@ -130,10 +151,11 @@ async function testBaixaLoteIntegridade(): Promise<TestResult> {
   const start = Date.now();
   try {
     const { data: projetos } = await api('GET', '/projetos');
-    if (!(projetos as any[]).length) return { name: 'Baixa Lote Integridade', passed: false, details: 'Nenhum projeto', duration: 0 };
+    const projetoList = projetos as Projeto[];
+    if (!projetoList.length) return { name: 'Baixa Lote Integridade', passed: false, details: 'Nenhum projeto', duration: 0 };
 
-    const projetoId = (projetos as any[])[0].id;
-    const result = await api('POST', '/folha/baixar-lote', { projetoId, ano: 2026, mes: 99 });
+    const projetoId = projetoList[0].id;
+    const result = await api('POST', '/folha/baixar-lote', { projeto_id: projetoId, ano: 2026, mes: 99 });
 
     return {
       name: 'Baixa Lote Integridade',
@@ -156,7 +178,7 @@ async function testRBACBaixa(): Promise<TestResult> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'bolsa@aneel.gov.br', senha: '123456' }),
     });
-    const loginData = await loginRes.json();
+    const loginData = await loginRes.json() as { token: string };
 
     const result = await fetch(`${BASE_URL}/api/folha/baixar-individual`, {
       method: 'POST',

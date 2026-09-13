@@ -119,7 +119,7 @@ router.get('/competencias/:alocacao_id', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/baixar-individual', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
+router.post('/baixar-individual', requireRole(['GESTOR']), async (req, res) => {
   try {
     const user = req.user!;
     const parsed = baixaCompetenciaSchema.safeParse(req.body);
@@ -145,12 +145,6 @@ router.post('/baixar-individual', requireRole(['GESTOR', 'COORDENADOR']), async 
       );
 
       if (!competencia) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Competência não encontrada ou já liquidada' }); return; }
-
-      if (user.perfil === 'COORDENADOR' && competencia.projeto_coordenador_id !== user.userId) {
-        await client.query('ROLLBACK');
-        res.status(403).json({ error: 'Coordenador não é responsável por este projeto' });
-        return;
-      }
 
       const rubrica = await queryOne<{ saldo: number }>(
         `SELECT rp.valor_previsto - COALESCE(SUM(l.valor), 0) as saldo
@@ -194,7 +188,7 @@ router.post('/baixar-individual', requireRole(['GESTOR', 'COORDENADOR']), async 
   }
 });
 
-router.post('/baixar-lote', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
+router.post('/baixar-lote', requireRole(['GESTOR']), async (req, res) => {
   try {
     const user = req.user!;
     const parsed = baixaLoteSchema.safeParse(req.body);
@@ -203,16 +197,6 @@ router.post('/baixar-lote', requireRole(['GESTOR', 'COORDENADOR']), async (req, 
       return;
     }
     const { projeto_id, ano, mes } = parsed.data;
-
-    if (user.perfil === 'COORDENADOR') {
-      const projeto = await queryOne<{ coordenador_id: string }>(
-        'SELECT coordenador_id FROM projetos WHERE id = $1', [projeto_id]
-      );
-      if (!projeto || projeto.coordenador_id !== user.userId) {
-        res.status(403).json({ error: 'Coordenador não é responsável por este projeto' });
-        return;
-      }
-    }
 
     const client = await pool.connect();
     try {
@@ -282,7 +266,7 @@ const alterarNivelSchema = z.object({
   nivel_complemento: z.number().int().min(0).max(3),
 });
 
-router.put('/alterar-nivel', requireRole(['GESTOR']), async (req, res) => {
+router.put('/alterar-nivel', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
   try {
     const user = req.user!;
     const parsed = alterarNivelSchema.safeParse(req.body);

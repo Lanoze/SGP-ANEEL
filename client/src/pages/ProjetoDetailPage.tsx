@@ -39,7 +39,7 @@ function ProjetoDetalheContent() {
 
   const { data: projeto } = useQuery({ queryKey: ['projeto', id], queryFn: async () => (await api.get<Projeto>(`/projetos/${id}`)).data, enabled: !!id });
   const { data: rubricas } = useQuery({ queryKey: ['rubricas', id], queryFn: async () => (await api.get<RubricaProjeto[]>(`/projetos/${id}/rubricas`)).data, enabled: !!id && canViewRubricas });
-  const { data: lancamentos } = useQuery({ queryKey: ['lancamentos', selectedRubrica], queryFn: async () => (await api.get<Lancamento[]>(`/lancamentos/rubrica/${selectedRubrica}`)).data, enabled: !!selectedRubrica });
+  const { data: lancamentos } = useQuery({ queryKey: ['lancamentos', selectedRubrica], queryFn: async () => (await api.get<{ data: Lancamento[] }>(`/lancamentos/rubrica/${selectedRubrica}`)).data.data, enabled: !!selectedRubrica });
 
   const lancamentoMutation = useMutation({
     mutationFn: async (data: createLancamentoInput) => (await api.post('/lancamentos', data)).data,

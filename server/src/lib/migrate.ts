@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS projetos (
   data_inicio     DATE NOT NULL,
   data_fim        DATE NOT NULL,
   ativo           BOOLEAN NOT NULL DEFAULT true,
-  criado_em       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  criado_em       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT chk_datas_projeto CHECK (data_fim > data_inicio)
 );
 
 -- 3. TABELA: rubricas_projeto
@@ -36,18 +37,19 @@ CREATE TABLE IF NOT EXISTS rubricas_projeto (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   projeto_id      UUID NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
   rubrica         VARCHAR(2) NOT NULL CHECK (rubrica IN ('RH','ST','MC','EP','VD','OU')),
-  valor_previsto  NUMERIC(15,2) NOT NULL DEFAULT 0,
+  valor_previsto  NUMERIC(15,2) NOT NULL DEFAULT 0 CHECK (valor_previsto >= 0),
   UNIQUE (projeto_id, rubrica)
 );
 
 -- 4. TABELA: lancamentos
 CREATE TABLE IF NOT EXISTS lancamentos (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  rubrica_projeto_id  UUID NOT NULL REFERENCES rubricas_projeto(id) ON DELETE CASCADE,
+  rubrica_projeto_id  UUID NOT NULL REFERENCES rubricas_projeto(id) ON DELETE RESTRICT,
   descricao           VARCHAR(500) NOT NULL,
-  valor               NUMERIC(15,2) NOT NULL,
+  valor               NUMERIC(15,2) NOT NULL CHECK (valor > 0),
   data_despesa        DATE NOT NULL,
   usuario_registro_id UUID NOT NULL REFERENCES usuarios(id),
+  documento_id        UUID REFERENCES documentos_metadados(id) ON DELETE SET NULL,
   criado_em           TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -55,10 +57,10 @@ CREATE TABLE IF NOT EXISTS lancamentos (
 CREATE TABLE IF NOT EXISTS alocacao_rh (
   id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   projeto_id               UUID NOT NULL REFERENCES projetos(id) ON DELETE CASCADE,
-  usuario_id               UUID NOT NULL REFERENCES usuarios(id),
+  usuario_id               UUID NOT NULL REFERENCES usuarios(id) ON DELETE RESTRICT,
   papel_projeto            VARCHAR(20) NOT NULL CHECK (papel_projeto IN ('GESTOR','COORDENADOR','PESQUISADOR','BOLSISTA')),
   nivel_academico          VARCHAR(100) NOT NULL,
-  valor_nominal_capes      NUMERIC(15,2) NOT NULL,
+  valor_nominal_capes      NUMERIC(15,2) NOT NULL CHECK (valor_nominal_capes > 0),
   nivel_complemento        INTEGER NOT NULL DEFAULT 0 CHECK (nivel_complemento BETWEEN 0 AND 3),
   valor_mensal_calculado   NUMERIC(15,2) NOT NULL,
   UNIQUE (projeto_id, usuario_id)
@@ -68,7 +70,7 @@ CREATE TABLE IF NOT EXISTS alocacao_rh (
 CREATE TABLE IF NOT EXISTS competencias_folha (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   alocacao_rh_id   UUID NOT NULL REFERENCES alocacao_rh(id) ON DELETE CASCADE,
-  ano              INTEGER NOT NULL,
+  ano              INTEGER NOT NULL CHECK (ano >= 2020),
   mes              INTEGER NOT NULL CHECK (mes BETWEEN 1 AND 12),
   valor_devido     NUMERIC(15,2) NOT NULL,
   status           VARCHAR(20) NOT NULL DEFAULT 'PENDENTE' CHECK (status IN ('PENDENTE','PAGO','CANCELADO')),
@@ -128,6 +130,11 @@ CREATE INDEX IF NOT EXISTS idx_documentos_categoria    ON documentos_metadados (
 CREATE INDEX IF NOT EXISTS idx_audit_usuario           ON audit_logs (usuario_id);
 CREATE INDEX IF NOT EXISTS idx_audit_tabela            ON audit_logs (tabela_origem);
 CREATE INDEX IF NOT EXISTS idx_audit_criado            ON audit_logs (criado_em);
+
+-- Composite indexes per spec
+CREATE INDEX IF NOT EXISTS idx_competencias_busca      ON competencias_folha (ano, mes, status);
+CREATE INDEX IF NOT EXISTS idx_documentos_categoria    ON documentos_metadados (projeto_id, categoria);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_busca        ON audit_logs (tabela_origem, registro_id);
 
 -- ============================================================
 -- TRIGGERS DE AUDITORIA (PL/pgSQL)
@@ -241,7 +248,7 @@ async function migrate() {
     await client.query('BEGIN');
     await client.query(DDL);
     await client.query('COMMIT');
-    console.log('✅ Migração concluída: 9 tabelas + 13 índices + 7 triggers de auditoria');
+    console.log('✅ Migração concluída: 9 tabelas + 16 índices + 7 triggers de auditoria');
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('❌ Erro na migração:', err);

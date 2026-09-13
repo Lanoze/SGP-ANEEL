@@ -33,9 +33,10 @@ function ProjetoDetalheContent() {
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const isGestor = user?.perfil === 'GESTOR';
+  const canViewRubricas = user?.perfil !== 'BOLSISTA';
 
   const { data: projeto } = useQuery({ queryKey: ['projeto', id], queryFn: async () => (await api.get<Projeto>(`/projetos/${id}`)).data, enabled: !!id });
-  const { data: rubricas } = useQuery({ queryKey: ['rubricas', id], queryFn: async () => (await api.get<RubricaProjeto[]>(`/projetos/${id}/rubricas`)).data, enabled: !!id });
+  const { data: rubricas } = useQuery({ queryKey: ['rubricas', id], queryFn: async () => (await api.get<RubricaProjeto[]>(`/projetos/${id}/rubricas`)).data, enabled: !!id && canViewRubricas });
   const { data: lancamentos } = useQuery({ queryKey: ['lancamentos', selectedRubrica], queryFn: async () => (await api.get<Lancamento[]>(`/lancamentos/rubrica/${selectedRubrica}`)).data, enabled: !!selectedRubrica });
 
   const lancamentoMutation = useMutation({
@@ -74,10 +75,11 @@ function ProjetoDetalheContent() {
             </div>
             <Link to={`/projetos/${id}/documentos`} className="inline-block mt-2 text-sm text-blue-600 hover:text-blue-800">📁 Gerenciar Documentos</Link>
           </div>
+          {canViewRubricas && (
           <div className="bg-white rounded-xl shadow p-6 mb-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-lg font-semibold">Rubricas Orçamentárias</h2>
-              <button onClick={() => setShowLancamento(true)} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700">+ Novo Lançamento</button>
+              {isGestor && <button onClick={() => setShowLancamento(true)} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700">+ Novo Lançamento</button>}
             </div>
             <div className="grid gap-3">
               {rubricas?.map((r) => {
@@ -105,7 +107,8 @@ function ProjetoDetalheContent() {
               })}
             </div>
           </div>
-          {selectedRubrica && lancamentos && (
+          )}
+          {selectedRubrica && canViewRubricas && lancamentos && (
             <div className="bg-white rounded-xl shadow p-6">
               <h2 className="text-lg font-semibold mb-4">Extrato de Lançamentos</h2>
               {lancamentos.length === 0 ? <p className="text-slate-500 text-sm">Nenhum lançamento registrado.</p> : (

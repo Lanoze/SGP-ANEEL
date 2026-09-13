@@ -111,7 +111,7 @@ router.post('/:projeto_id/upload', requireAuth, upload.single('arquivo'), async 
       return;
     }
 
-    const buffer = Buffer.from(arquivo.buffer);
+    const buffer = arquivo.buffer;
     const extensao = '.' + arquivo.originalname.split('.').pop()?.toLowerCase();
 
     const validacao = validarMagicBytes(buffer, extensao);
@@ -178,7 +178,7 @@ router.post('/upload-stream', requireAuth, async (req, res) => {
     await query(
       `INSERT INTO upload_chunks (file_id, chunk_index, chunk_data) VALUES ($1, $2, $3)
        ON CONFLICT (file_id, chunk_index) DO UPDATE SET chunk_data = EXCLUDED.chunk_data`,
-      [fileId, chunkIndex, Buffer.from(chunk)]
+      [fileId, chunkIndex, chunk]
     );
 
     const countResult = await queryOne<{ count: string }>(
@@ -277,7 +277,7 @@ router.get('/download/:id', requireAuth, async (req, res) => {
     res.setHeader('Content-Length', String(meta.tamanho_bytes));
     res.setHeader('Cache-Control', 'private, max-age=3600');
     res.setHeader('X-Content-SHA256', meta.hash_sha256);
-    res.send(Buffer.from(payload.conteudo_binario));
+    res.send(payload.conteudo_binario);
   } catch (error) {
     console.error('Download documento error:', error);
     res.status(500).json({ error: 'Erro interno' });

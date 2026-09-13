@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { query, queryOne } from '../lib/db';
 import { createAuditLog } from '../lib/audit';
-import { requireAuth, requireRole } from '../lib/rbac';
+import { requireAuth, requireRole, requireMinRole } from '../lib/rbac';
 import type { RubricaProjeto } from '../lib/types';
 
 const router = Router();
 
-router.get('/:id/rubricas', requireAuth, async (req, res) => {
+router.get('/:id/rubricas', requireMinRole('PESQUISADOR'), async (req, res) => {
   try {
     const rubricas = await query<RubricaProjeto>(
       `SELECT rp.*, COALESCE(SUM(l.valor), 0) as valor_executado,

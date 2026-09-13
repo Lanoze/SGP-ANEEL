@@ -313,6 +313,72 @@ router.post('/baixar-lote', requireRole(['GESTOR']), async (req, res) => {
   }
 });
 
+router.post('/cancelar-baixa', requireRole(['GESTOR']), async (req, res) => {
+  try {
+    const user = req.user!;
+    const parsed = baixaCompetenciaSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+    const { competencia_id } = parsed.data;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await setAuditContext(client, user.userId);
+
+      const competenciaResult = await client.query<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number; alocacao_rh_id: string }>(
+        `SELECT cf.*, rp.id as rubrica_projeto_id
+         FROM competencias_folha cf
+         JOIN alocacao_rh a ON cf.alocacao_rh_id = a.id
+         JOIN rubricas_projeto rp ON rp.projeto_id = a.projeto_id AND rp.rubrica = 'RH'
+         WHERE cf.id = $1 AND cf.status = 'PAGO'
+         FOR UPDATE OF cf`,
+        [competencia_id]
+      );
+      const competencia = competenciaResult.rows[0];
+      if (!competencia) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Competência não encontrada ou não está PAGA' }); return; }
+
+      const lancResult = await client.query<{ id: string; valor: number }>(
+        `DELETE FROM lancamentos
+         WHERE rubrica_projeto_id = $1
+           AND descricao LIKE $2
+         RETURNING id, valor`,
+        [competencia.rubrica_projeto_id, `Baixa folha - competência ${competencia.mes}/${competencia.ano}`]
+      );
+
+      if (lancResult.rows.length === 0) {
+        await client.query('ROLLBACK');
+        res.status(404).json({ error: 'Lançamento de baixa não encontrado' });
+        return;
+      }
+
+      await client.query(
+        `UPDATE competencias_folha SET status = 'PENDENTE', data_baixa = NULL, usuario_baixa_id = NULL WHERE id = $2`,
+        [user.userId, competencia_id]
+      );
+
+      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+      await createAuditLog({
+        usuario_id: user.userId,
+        acao: 'CANCELAR_BAIXA',
+        tabela_origem: 'competencias_folha',
+        registro_id: competencia_id,
+        estado_anterior: { status: 'PAGO', valor: competencia.valor_devido },
+        estado_posterior: { status: 'PENDENTE' },
+        endereco_ip: String(ip),
+      });
+
+      await client.query('COMMIT');
+      res.json({ message: 'Baixa cancelada com sucesso' });
+    } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+  } catch (error) {
+    console.error('Cancelar baixa error:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
 const alterarNivelSchema = z.object({
   alocacao_id: z.string().uuid(),
   nivel_complemento: z.number().int().min(0).max(3),

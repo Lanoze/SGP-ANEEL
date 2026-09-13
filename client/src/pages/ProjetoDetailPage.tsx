@@ -167,6 +167,10 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending }: 
     mode: 'onChange',
   });
 
+  useEffect(() => {
+    if (rubricaId) form.setValue('rubrica_projeto_id', rubricaId, { shouldValidate: true });
+  }, [rubricaId, form]);
+
   return (
     <Modal open={true} onClose={onClose} title="Novo Lançamento"
       footer={

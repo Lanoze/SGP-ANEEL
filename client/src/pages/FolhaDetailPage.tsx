@@ -204,7 +204,6 @@ function FolhaContent() {
 const PAPEL_OPTIONS = [
   { value: 'PESQUISADOR', label: 'Pesquisador' },
   { value: 'BOLSISTA', label: 'Bolsista' },
-  { value: 'COORDENADOR', label: 'Coordenador' },
 ];
 const NIVEL_OPTIONS = [
   { value: '0', label: 'Nível 0 (0%)' },
@@ -249,7 +248,7 @@ function AlocacaoModal({ projetoId, usuarios, alocados, onClose, onSubmit, isPen
       </div>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Papel no Projeto</label>
-        <SelectInput value={form.watch('papel_projeto')} onValueChange={(v) => form.setValue('papel_projeto', v as 'PESQUISADOR' | 'BOLSISTA' | 'COORDENADOR')} options={PAPEL_OPTIONS} />
+        <SelectInput value={form.watch('papel_projeto')} onValueChange={(v) => form.setValue('papel_projeto', v as 'PESQUISADOR' | 'BOLSISTA')} options={PAPEL_OPTIONS} />
         {form.formState.errors.papel_projeto && <p className="text-red-500 text-xs mt-1">{form.formState.errors.papel_projeto.message}</p>}
       </div>
       <div>

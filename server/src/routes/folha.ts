@@ -134,24 +134,28 @@ router.post('/baixar-individual', requireRole(['GESTOR']), async (req, res) => {
       await client.query('BEGIN');
       await setAuditContext(client, user.userId);
 
-      const competencia = await queryOne<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number; projeto_coordenador_id: string }>(
+      const competenciaResult = await client.query<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number; projeto_coordenador_id: string }>(
         `SELECT cf.*, rp.id as rubrica_projeto_id, p.coordenador_id as projeto_coordenador_id
          FROM competencias_folha cf
          JOIN alocacao_rh a ON cf.alocacao_rh_id = a.id
          JOIN rubricas_projeto rp ON rp.projeto_id = a.projeto_id AND rp.rubrica = 'RH'
          JOIN projetos p ON p.id = a.projeto_id
-         WHERE cf.id = $1 AND cf.status = 'PENDENTE'`,
+         WHERE cf.id = $1 AND cf.status = 'PENDENTE'
+         FOR UPDATE OF cf`,
         [competencia_id]
       );
+      const competencia = competenciaResult.rows[0];
 
       if (!competencia) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Competência não encontrada ou já liquidada' }); return; }
 
-      const rubrica = await queryOne<{ saldo: number }>(
+      const rubricaResult = await client.query<{ saldo: number }>(
         `SELECT rp.valor_previsto - COALESCE(SUM(l.valor), 0) as saldo
          FROM rubricas_projeto rp LEFT JOIN lancamentos l ON l.rubrica_projeto_id = rp.id
-         WHERE rp.id = $1 GROUP BY rp.id, rp.valor_previsto`,
+         WHERE rp.id = $1 GROUP BY rp.id, rp.valor_previsto
+         FOR UPDATE OF rp`,
         [competencia.rubrica_projeto_id]
       );
+      const rubrica = rubricaResult.rows[0];
 
       if (!rubrica || rubrica.saldo < competencia.valor_devido) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: rubrica?.saldo ?? 0 }); return; }
 
@@ -203,26 +207,30 @@ router.post('/baixar-lote', requireRole(['GESTOR']), async (req, res) => {
       await client.query('BEGIN');
       await setAuditContext(client, user.userId);
 
-      const competencias = await query<{ id: string; valor_devido: number; rubrica_projeto_id: string }>(
+      const competenciasResult = await client.query<{ id: string; valor_devido: number; rubrica_projeto_id: string }>(
         `SELECT cf.*, rp.id as rubrica_projeto_id
          FROM competencias_folha cf
          JOIN alocacao_rh a ON cf.alocacao_rh_id = a.id
          JOIN rubricas_projeto rp ON rp.projeto_id = a.projeto_id AND rp.rubrica = 'RH'
-         WHERE a.projeto_id = $1 AND cf.ano = $2 AND cf.mes = $3 AND cf.status = 'PENDENTE'`,
+         WHERE a.projeto_id = $1 AND cf.ano = $2 AND cf.mes = $3 AND cf.status = 'PENDENTE'
+         FOR UPDATE OF cf`,
         [projeto_id, ano, mes]
       );
+      const competencias = competenciasResult.rows;
 
       if (competencias.length === 0) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Nenhuma competência pendente' }); return; }
 
       const totalFolha = competencias.reduce((sum, c) => sum + parseFloat(String(c.valor_devido)), 0);
       const rubrica_projeto_id = competencias[0].rubrica_projeto_id;
 
-      const rubrica = await queryOne<{ saldo: number }>(
+      const rubricaLoteResult = await client.query<{ saldo: number }>(
         `SELECT rp.valor_previsto - COALESCE(SUM(l.valor), 0) as saldo
          FROM rubricas_projeto rp LEFT JOIN lancamentos l ON l.rubrica_projeto_id = rp.id
-         WHERE rp.id = $1 GROUP BY rp.id, rp.valor_previsto`,
+         WHERE rp.id = $1 GROUP BY rp.id, rp.valor_previsto
+         FOR UPDATE OF rp`,
         [rubrica_projeto_id]
       );
+      const rubrica = rubricaLoteResult.rows[0];
 
       if (!rubrica || rubrica.saldo < totalFolha) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: rubrica?.saldo ?? 0, total_folha: totalFolha }); return; }
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query, queryOne, pool, setAuditContext } from '../lib/db';
+import { query, pool, setAuditContext } from '../lib/db';
 import { createAuditLog } from '../lib/audit';
 import { requireAuth, requireRole } from '../lib/rbac';
 import { createLancamentoSchema } from '../lib/schemas';
@@ -20,23 +20,26 @@ router.post('/', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
     try {
       await client.query('BEGIN');
       await setAuditContext(client, user.userId);
-      const rubrica = await queryOne<{ saldo: number }>(
+      const rubricaResult = await client.query<{ saldo: number }>(
         `SELECT rp.valor_previsto - COALESCE(SUM(l.valor), 0) as saldo
          FROM rubricas_projeto rp
          LEFT JOIN lancamentos l ON l.rubrica_projeto_id = rp.id
-         WHERE rp.id = $1 GROUP BY rp.id, rp.valor_previsto`,
+         WHERE rp.id = $1 GROUP BY rp.id, rp.valor_previsto
+         FOR UPDATE OF rp`,
         [rubrica_projeto_id]
       );
+      const rubrica = rubricaResult.rows[0];
       if (!rubrica) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Rubrica não encontrada' }); return; }
       if (rubrica.saldo < valor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: rubrica.saldo }); return; }
-      const lancamento = await queryOne<Lancamento>(
+      const lancResult = await client.query<Lancamento>(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,
         [rubrica_projeto_id, descricao, valor, data_despesa, user.userId]
       );
+      const lancamento = lancResult.rows[0];
       await client.query('COMMIT');
       const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-      await createAuditLog({ usuario_id: user.userId, acao: 'CREATE', tabela_origem: 'lancamentos', registro_id: lancamento!.id, estado_posterior: { rubrica_projeto_id, descricao, valor, data_despesa }, endereco_ip: String(ip) });
+      await createAuditLog({ usuario_id: user.userId, acao: 'CREATE', tabela_origem: 'lancamentos', registro_id: lancamento.id, estado_posterior: { rubrica_projeto_id, descricao, valor, data_despesa }, endereco_ip: String(ip) });
       res.status(201).json(lancamento);
     } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
   } catch (error) {
@@ -95,22 +98,35 @@ router.put('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
     const fields = parsed.data;
     const keys = Object.keys(fields);
     if (keys.length === 0) { res.status(400).json({ error: 'Nenhum campo para atualizar' }); return; }
-    const existing = await queryOne<Lancamento>(`SELECT * FROM lancamentos WHERE id = $1`, [id]);
-    if (!existing) { res.status(404).json({ error: 'Lancamento nao encontrado' }); return; }
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       await setAuditContext(client, user.userId);
+      const existingResult = await client.query<Lancamento>(`SELECT * FROM lancamentos WHERE id = $1 FOR UPDATE`, [id]);
+      const existing = existingResult.rows[0];
+      if (!existing) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Lancamento nao encontrado' }); return; }
+      if (fields.valor !== undefined) {
+        const saldoResult = await client.query<{ saldo: number }>(
+          `SELECT rp.valor_previsto - COALESCE(SUM(l.valor), 0) + $2 as saldo
+           FROM rubricas_projeto rp
+           LEFT JOIN lancamentos l ON l.rubrica_projeto_id = rp.id
+           WHERE rp.id = $3 GROUP BY rp.id, rp.valor_previsto
+           FOR UPDATE OF rp`,
+          [existing.rubrica_projeto_id, existing.valor, existing.rubrica_projeto_id]
+        );
+        const saldoComReversao = saldoResult.rows[0]?.saldo ?? 0;
+        if (saldoComReversao < fields.valor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldoComReversao }); return; }
+      }
       const setClauses = keys.map((k, i) => `${k} = $${i + 1}`);
       const values = keys.map((k) => (fields as Record<string, unknown>)[k]);
-      const updated = await queryOne<Lancamento>(
+      const updatedResult = await client.query<Lancamento>(
         `UPDATE lancamentos SET ${setClauses.join(', ')} WHERE id = $${keys.length + 1} RETURNING *`,
         [...values, id]
       );
       await client.query('COMMIT');
       const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
       await createAuditLog({ usuario_id: user.userId, acao: 'UPDATE', tabela_origem: 'lancamentos', registro_id: id, estado_anterior: { descricao: existing.descricao, valor: existing.valor, data_despesa: existing.data_despesa }, estado_posterior: fields, endereco_ip: String(ip) });
-      res.json(updated);
+      res.json(updatedResult.rows[0]);
     } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
   } catch (error) {
     console.error('Update lancamento error:', error);
@@ -122,12 +138,13 @@ router.delete('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) =
   try {
     const user = req.user!;
     const { id } = req.params;
-    const existing = await queryOne<Lancamento>(`SELECT * FROM lancamentos WHERE id = $1`, [id]);
-    if (!existing) { res.status(404).json({ error: 'Lancamento nao encontrado' }); return; }
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       await setAuditContext(client, user.userId);
+      const existingResult = await client.query<Lancamento>(`SELECT * FROM lancamentos WHERE id = $1 FOR UPDATE`, [id]);
+      const existing = existingResult.rows[0];
+      if (!existing) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Lancamento nao encontrado' }); return; }
       await client.query(`DELETE FROM lancamentos WHERE id = $1`, [id]);
       await client.query('COMMIT');
       const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';

@@ -152,7 +152,7 @@ router.post('/baixar-individual', requireRole(['GESTOR']), async (req, res) => {
         `SELECT valor_previsto FROM rubricas_projeto WHERE id = $1 FOR UPDATE`,
         [competencia.rubrica_projeto_id]
       );
-      if (lockedResult.rows.length === 0) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Rubrica RH nao encontrada' }); return; }
+      if (lockedResult.rows.length === 0) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Rubrica RH não encontrada' }); return; }
       const valorPrevisto = parseFloat(String(lockedResult.rows[0].valor_previsto));
       const saldoResult = await client.query<{ saldo: number }>(
         `SELECT $1::numeric - COALESCE(SUM(l.valor), 0) as saldo
@@ -230,7 +230,7 @@ router.post('/baixar-lote', requireRole(['GESTOR']), async (req, res) => {
         `SELECT valor_previsto FROM rubricas_projeto WHERE id = $1 FOR UPDATE`,
         [rubrica_projeto_id]
       );
-      if (lockedLoteResult.rows.length === 0) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Rubrica RH nao encontrada' }); return; }
+      if (lockedLoteResult.rows.length === 0) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Rubrica RH não encontrada' }); return; }
       const valorPrevistoLote = parseFloat(String(lockedLoteResult.rows[0].valor_previsto));
       const rubricaLoteResult = await client.query<{ saldo: number }>(
         `SELECT $1::numeric - COALESCE(SUM(l.valor), 0) as saldo

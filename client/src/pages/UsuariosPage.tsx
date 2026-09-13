@@ -11,15 +11,15 @@ import { Modal } from '../components/FormComponents';
 import { createUsuarioSchema, type createUsuarioInput } from '../lib/schemas';
 import type { Usuario } from '../types';
 
-export default function UsuariosPage() {
+export default function UsuáriosPage() {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   useEffect(() => { if (!isAuthenticated || user?.perfil !== 'GESTOR') navigate('/'); }, [isAuthenticated, user, navigate]);
   if (!isAuthenticated || user?.perfil !== 'GESTOR') return null;
-  return <Layout><UsuariosContent /></Layout>;
+  return <Layout><UsuáriosContent /></Layout>;
 }
 
-function UsuariosContent() {
+function UsuáriosContent() {
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<Usuario | null>(null);
   const [deleting, setDeleting] = useState<Usuario | null>(null);
@@ -49,10 +49,10 @@ function UsuariosContent() {
 
   return (
     <div className="p-6">
-      <Breadcrumbs items={[{ label: 'Usuarios' }]} />
+      <Breadcrumbs items={[{ label: 'Usuários' }]} />
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Usuarios</h1>
-        <button onClick={() => setShowCreate(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">+ Novo Usuario</button>
+        <h1 className="text-2xl font-bold text-slate-900">Usuários</h1>
+        <button onClick={() => setShowCreate(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium">+ Novo Usuário</button>
       </div>
 
       <div className="bg-white rounded-xl shadow overflow-hidden">
@@ -64,7 +64,7 @@ function UsuariosContent() {
               <th className="text-left px-4 py-3 font-medium text-slate-600">CPF</th>
               <th className="text-left px-4 py-3 font-medium text-slate-600">Perfil</th>
               <th className="text-left px-4 py-3 font-medium text-slate-600">Status</th>
-              <th className="text-right px-4 py-3 font-medium text-slate-600">Acoes</th>
+              <th className="text-right px-4 py-3 font-medium text-slate-600">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -111,7 +111,7 @@ function CreateUsuarioModal({ onClose, onSubmit, isPending, error }: { onClose: 
   });
 
   return (
-    <Modal open={true} onClose={onClose} title="Novo Usuario"
+    <Modal open={true} onClose={onClose} title="Novo Usuário"
       footer={
         <>
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
@@ -127,7 +127,7 @@ function CreateUsuarioModal({ onClose, onSubmit, isPending, error }: { onClose: 
         {form.formState.errors.nome_completo && <p className="text-red-500 text-xs mt-1">{form.formState.errors.nome_completo.message}</p>}
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">CPF (somente numeros)</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">CPF (somente números)</label>
         <input {...form.register('cpf')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" maxLength={11} />
         {form.formState.errors.cpf && <p className="text-red-500 text-xs mt-1">{form.formState.errors.cpf.message}</p>}
       </div>
@@ -169,7 +169,7 @@ function EditUsuarioModal({ usuario, onClose, onSubmit, isPending, error }: { us
   });
 
   return (
-    <Modal open={true} onClose={onClose} title="Editar Usuario"
+    <Modal open={true} onClose={onClose} title="Editar Usuário"
       footer={
         <>
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
@@ -207,7 +207,7 @@ function EditUsuarioModal({ usuario, onClose, onSubmit, isPending, error }: { us
 
 function ConfirmDeleteModal({ nome, onClose, onConfirm, isPending, error }: { nome: string; onClose: () => void; onConfirm: () => void; isPending: boolean; error?: string }) {
   return (
-    <Modal open={true} onClose={onClose} title="Confirmar Exclusao"
+    <Modal open={true} onClose={onClose} title="Confirmar Exclusão"
       footer={
         <>
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
@@ -217,7 +217,7 @@ function ConfirmDeleteModal({ nome, onClose, onConfirm, isPending, error }: { no
           </button>
         </>
       }>
-      <p className="text-sm text-slate-600">Tem certeza que deseja excluir o usuario <strong>{nome}</strong>?</p>
+      <p className="text-sm text-slate-600">Tem certeza que deseja excluir o usuário <strong>{nome}</strong>?</p>
       {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
     </Modal>
   );

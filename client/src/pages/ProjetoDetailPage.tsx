@@ -102,8 +102,8 @@ function ProjetoDetalheContent() {
           {canViewRubricas && (
           <div className="mb-6">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-semibold">Rubricas Orcamentarias</h2>
-              {canCreateLancamento && <button onClick={() => setShowLancamento(true)} disabled={!!selectedRubrica && rubricas && (parseFloat(String(rubricas.find((r) => r.id === selectedRubrica)?.valor_previsto)) - parseFloat(String(rubricas.find((r) => r.id === selectedRubrica)?.valor_executado))) <= 0} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">+ Novo Lancamento</button>}
+              <h2 className="text-lg font-semibold">Rubricas Orçamentárias</h2>
+              {canCreateLancamento && <button onClick={() => setShowLancamento(true)} disabled={!!selectedRubrica && rubricas && (parseFloat(String(rubricas.find((r) => r.id === selectedRubrica)?.valor_previsto)) - parseFloat(String(rubricas.find((r) => r.id === selectedRubrica)?.valor_executado))) <= 0} className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">+ Novo Lançamento</button>}
             </div>
             <div className="grid gap-3">
               {rubricas?.map((r) => {
@@ -131,11 +131,11 @@ function ProjetoDetalheContent() {
                     </div>
                     {isSelected && canViewRubricas && (
                       <div className="border-t px-4 py-3">
-                        <h3 className="text-sm font-semibold text-slate-700 mb-2">Lancamentos</h3>
+                        <h3 className="text-sm font-semibold text-slate-700 mb-2">Lançamentos</h3>
                         {!lancamentos ? (
                           <p className="text-slate-400 text-xs">Carregando...</p>
                         ) : lancamentos.length === 0 ? (
-                          <p className="text-slate-400 text-xs">Nenhum lancamento registrado.</p>
+                          <p className="text-slate-400 text-xs">Nenhum lançamento registrado.</p>
                         ) : (
                           <div className="space-y-1">
                             {lancamentos.map((l) => (
@@ -234,7 +234,7 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, er
   }, [rubricaId, form]);
 
   return (
-    <Modal open={true} onClose={onClose} title="Novo Lancamento"
+    <Modal open={true} onClose={onClose} title="Novo Lançamento"
       footer={
         <>
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
@@ -252,9 +252,9 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, er
         </select>
         {form.formState.errors.rubrica_projeto_id && <p className="text-red-500 text-xs mt-1">{form.formState.errors.rubrica_projeto_id.message}</p>}
       </div>
-      {semSaldo && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">Saldo insuficiente nesta rubrica (R$ {saldoRubrica?.toLocaleString('pt-BR')}). Nao e possivel registrar lancamentos.</div>}
+      {semSaldo && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">Saldo insuficiente nesta rubrica (R$ {saldoRubrica?.toLocaleString('pt-BR')}). Não é possível registrar lançamentos.</div>}
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Descricao</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
         <input {...form.register('descricao')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
         {form.formState.errors.descricao && <p className="text-red-500 text-xs mt-1">{form.formState.errors.descricao.message}</p>}
       </div>
@@ -262,7 +262,7 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, er
         <label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label>
         <input type="number" step="0.01" min="0.01" {...form.register('valor', { valueAsNumber: true })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
         {form.formState.errors.valor && <p className="text-red-500 text-xs mt-1">{form.formState.errors.valor.message}</p>}
-        {excedeSaldo && <p className="text-red-600 text-xs mt-1">Valor excede o saldo disponivel da rubrica (R$ {saldoRubrica?.toLocaleString('pt-BR')}).</p>}
+        {excedeSaldo && <p className="text-red-600 text-xs mt-1">Valor excede o saldo disponível da rubrica (R$ {saldoRubrica?.toLocaleString('pt-BR')}).</p>}
       </div>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>
@@ -289,7 +289,7 @@ function EditLancamentoModal({ lancamento, rubricas, onClose, onSubmit, isPendin
   const excedeSaldo = saldoComReversao !== null && (valorAtual ?? 0) > 0 && (valorAtual ?? 0) > saldoComReversao;
 
   return (
-    <Modal open={true} onClose={onClose} title="Editar Lancamento"
+    <Modal open={true} onClose={onClose} title="Editar Lançamento"
       footer={
         <>
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
@@ -306,7 +306,7 @@ function EditLancamentoModal({ lancamento, rubricas, onClose, onSubmit, isPendin
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Descricao</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
         <input {...form.register('descricao')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
         {form.formState.errors.descricao && <p className="text-red-500 text-xs mt-1">{form.formState.errors.descricao.message}</p>}
       </div>
@@ -314,7 +314,7 @@ function EditLancamentoModal({ lancamento, rubricas, onClose, onSubmit, isPendin
         <label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label>
         <input type="number" step="0.01" min="0.01" {...form.register('valor', { valueAsNumber: true })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
         {form.formState.errors.valor && <p className="text-red-500 text-xs mt-1">{form.formState.errors.valor.message}</p>}
-        {excedeSaldo && <p className="text-red-600 text-xs mt-1">Valor excede o saldo disponivel da rubrica (R$ {saldoComReversao?.toLocaleString('pt-BR')}).</p>}
+        {excedeSaldo && <p className="text-red-600 text-xs mt-1">Valor excede o saldo disponível da rubrica (R$ {saldoComReversao?.toLocaleString('pt-BR')}).</p>}
       </div>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>
@@ -327,7 +327,7 @@ function EditLancamentoModal({ lancamento, rubricas, onClose, onSubmit, isPendin
 
 function ConfirmDeleteLancamentoModal({ lancamento, onClose, onConfirm, isPending }: { lancamento: Lancamento; onClose: () => void; onConfirm: () => void; isPending: boolean }) {
   return (
-    <Modal open={true} onClose={onClose} title="Excluir Lancamento"
+    <Modal open={true} onClose={onClose} title="Excluir Lançamento"
       footer={
         <>
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
@@ -337,7 +337,7 @@ function ConfirmDeleteLancamentoModal({ lancamento, onClose, onConfirm, isPendin
           </button>
         </>
       }>
-      <p className="text-sm text-slate-600">Tem certeza que deseja excluir o lancamento <strong>{lancamento.descricao}</strong>?</p>
+      <p className="text-sm text-slate-600">Tem certeza que deseja excluir o lançamento <strong>{lancamento.descricao}</strong>?</p>
       <p className="text-xs text-slate-500 mt-1">Valor: R$ {parseFloat(String(lancamento.valor)).toLocaleString('pt-BR')} · {fmtDate(lancamento.data_despesa)}</p>
     </Modal>
   );
@@ -362,17 +362,17 @@ function EditProjetoModal({ projeto, onClose, onSubmit, isPending, error }: { pr
         </>
       }>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Codigo ANEEL</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Código ANEEL</label>
         <input {...form.register('codigo_aneel')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
         {form.formState.errors.codigo_aneel && <p className="text-red-500 text-xs mt-1">{form.formState.errors.codigo_aneel.message}</p>}
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Titulo</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Título</label>
         <input {...form.register('titulo')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
         {form.formState.errors.titulo && <p className="text-red-500 text-xs mt-1">{form.formState.errors.titulo.message}</p>}
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Descricao</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Descrição</label>
         <input {...form.register('descricao')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
       </div>
       <div>
@@ -382,7 +382,7 @@ function EditProjetoModal({ projeto, onClose, onSubmit, isPending, error }: { pr
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Data Inicio</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Data Início</label>
           <input type="date" {...form.register('data_inicio')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
         </div>
         <div>
@@ -397,7 +397,7 @@ function EditProjetoModal({ projeto, onClose, onSubmit, isPending, error }: { pr
 
 function ConfirmDeleteProjetoModal({ titulo, onClose, onConfirm, isPending, error }: { titulo: string; onClose: () => void; onConfirm: () => void; isPending: boolean; error?: string }) {
   return (
-    <Modal open={true} onClose={onClose} title="Confirmar Exclusao"
+    <Modal open={true} onClose={onClose} title="Confirmar Exclusão"
       footer={
         <>
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
@@ -408,7 +408,7 @@ function ConfirmDeleteProjetoModal({ titulo, onClose, onConfirm, isPending, erro
         </>
       }>
       <p className="text-sm text-slate-600">Tem certeza que deseja excluir o projeto <strong>{titulo}</strong>?</p>
-      <p className="text-xs text-red-500 mt-1">Esta acao ira excluir todas as rubricas, lancamentos e documentos associados.</p>
+      <p className="text-xs text-red-500 mt-1">Esta ação irá excluir todas as rubricas, lançamentos e documentos associados.</p>
       {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
     </Modal>
   );

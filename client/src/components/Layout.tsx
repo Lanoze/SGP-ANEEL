@@ -14,7 +14,7 @@ const allNavItems = [
   { to: '/folha', label: 'Folha', icon: '💰', minPerfil: 'COORDENADOR' },
   { to: '/relatorios', label: 'Relatórios', icon: '📈', minPerfil: 'COORDENADOR' },
   { to: '/auditoria', label: 'Auditoria', icon: '🔍', minPerfil: 'GESTOR' },
-  { to: '/usuarios', label: 'Usuarios', icon: '👥', minPerfil: 'GESTOR' },
+  { to: '/usuarios', label: 'Usuários', icon: '👥', minPerfil: 'GESTOR' },
 ];
 
 const ROLE_LEVELS: Record<string, number> = { GESTOR: 4, COORDENADOR: 3, PESQUISADOR: 2, BOLSISTA: 1 };

@@ -16,6 +16,15 @@ router.post('/', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
       return;
     }
     const { rubrica_projeto_id, descricao, valor, data_despesa } = parsed.data;
+
+    const rubricaInfo = await queryOne<{ rubrica: string }>(
+      'SELECT rubrica FROM rubricas_projeto WHERE id = $1', [rubrica_projeto_id]
+    );
+    if (rubricaInfo?.rubrica === 'RH') {
+      res.status(400).json({ error: 'Lançamentos manuais na rubrica RH não são permitidos. Utilize a folha de pagamento.' });
+      return;
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');

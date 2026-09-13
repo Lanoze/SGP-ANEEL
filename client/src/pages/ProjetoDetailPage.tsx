@@ -248,7 +248,7 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, er
         <label className="block text-sm font-medium text-slate-700 mb-1">Rubrica</label>
         <select {...form.register('rubrica_projeto_id')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
           <option value="">Selecione a rubrica...</option>
-          {rubricas?.map((r) => <option key={r.id} value={r.id}>{r.rubrica} - {RUBRICA_LABELS[r.rubrica]}</option>)}
+          {rubricas?.filter((r) => r.rubrica !== 'RH').map((r) => <option key={r.id} value={r.id}>{r.rubrica} - {RUBRICA_LABELS[r.rubrica]}</option>)}
         </select>
         {form.formState.errors.rubrica_projeto_id && <p className="text-red-500 text-xs mt-1">{form.formState.errors.rubrica_projeto_id.message}</p>}
       </div>
@@ -302,7 +302,7 @@ function EditLancamentoModal({ lancamento, rubricas, onClose, onSubmit, isPendin
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Rubrica</label>
         <select {...form.register('rubrica_projeto_id')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
-          {rubricas?.map((r) => <option key={r.id} value={r.id}>{r.rubrica} - {RUBRICA_LABELS[r.rubrica]}</option>)}
+          {rubricas?.filter((r) => r.rubrica !== 'RH').map((r) => <option key={r.id} value={r.id}>{r.rubrica} - {RUBRICA_LABELS[r.rubrica]}</option>)}
         </select>
       </div>
       <div>

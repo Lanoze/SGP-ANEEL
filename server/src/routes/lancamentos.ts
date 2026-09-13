@@ -20,17 +20,18 @@ router.post('/', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
     try {
       await client.query('BEGIN');
       await setAuditContext(client, user.userId);
-      const rubricaResult = await client.query<{ saldo: number }>(
-        `SELECT rp.valor_previsto - COALESCE(SUM(l.valor), 0) as saldo
-         FROM rubricas_projeto rp
-         LEFT JOIN lancamentos l ON l.rubrica_projeto_id = rp.id
-         WHERE rp.id = $1 GROUP BY rp.id, rp.valor_previsto
-         FOR UPDATE OF rp`,
+      const locked = await client.query<{ valor_previsto: number }>(
+        `SELECT valor_previsto FROM rubricas_projeto WHERE id = $1 FOR UPDATE`,
         [rubrica_projeto_id]
       );
-      const rubrica = rubricaResult.rows[0];
-      if (!rubrica) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Rubrica não encontrada' }); return; }
-      if (rubrica.saldo < valor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: rubrica.saldo }); return; }
+      if (locked.rows.length === 0) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Rubrica nao encontrada' }); return; }
+      const saldoResult = await client.query<{ saldo: number }>(
+        `SELECT $1::numeric - COALESCE(SUM(l.valor), 0) as saldo
+         FROM lancamentos l WHERE l.rubrica_projeto_id = $1`,
+        [rubrica_projeto_id]
+      );
+      const saldo = saldoResult.rows[0].saldo;
+      if (saldo < valor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldo }); return; }
       const lancResult = await client.query<Lancamento>(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,
@@ -106,16 +107,17 @@ router.put('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
       const existing = existingResult.rows[0];
       if (!existing) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Lancamento nao encontrado' }); return; }
       if (fields.valor !== undefined) {
+        const locked = await client.query(
+          `SELECT 1 FROM rubricas_projeto WHERE id = $1 FOR UPDATE`,
+          [existing.rubrica_projeto_id]
+        );
         const saldoResult = await client.query<{ saldo: number }>(
-          `SELECT rp.valor_previsto - COALESCE(SUM(l.valor), 0) + $2 as saldo
-           FROM rubricas_projeto rp
-           LEFT JOIN lancamentos l ON l.rubrica_projeto_id = rp.id
-           WHERE rp.id = $3 GROUP BY rp.id, rp.valor_previsto
-           FOR UPDATE OF rp`,
-          [existing.rubrica_projeto_id, existing.valor, existing.rubrica_projeto_id]
+          `SELECT $1::numeric - COALESCE(SUM(l.valor), 0) + $2 as saldo
+           FROM lancamentos l WHERE l.rubrica_projeto_id = $1`,
+          [existing.rubrica_projeto_id, existing.valor]
         );
         const saldoComReversao = saldoResult.rows[0]?.saldo ?? 0;
-        if (saldoComReversao < fields.valor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldoComReversao }); return; }
+        if (locked.rows.length === 0 || saldoComReversao < fields.valor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldoComReversao }); return; }
       }
       const setClauses = keys.map((k, i) => `${k} = $${i + 1}`);
       const values = keys.map((k) => (fields as Record<string, unknown>)[k]);

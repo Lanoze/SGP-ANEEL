@@ -178,6 +178,7 @@ function ProjetoDetalheContent() {
           {editingLancamento && (
             <EditLancamentoModal
               lancamento={editingLancamento}
+              rubricas={rubricas}
               onClose={() => setEditingLancamento(null)}
               onSubmit={(data) => updateLancamentoMutation.mutate({ id: editingLancamento.id, data })}
               isPending={updateLancamentoMutation.isPending}
@@ -273,24 +274,37 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, er
   );
 }
 
-function EditLancamentoModal({ lancamento, onClose, onSubmit, isPending }: { lancamento: Lancamento; onClose: () => void; onSubmit: (data: Partial<createLancamentoInput>) => void; isPending: boolean }) {
-  const form = useForm<Pick<createLancamentoInput, 'descricao' | 'valor' | 'data_despesa'>>({
-    resolver: zodResolver(createLancamentoSchema.pick({ descricao: true, valor: true, data_despesa: true })),
-    defaultValues: { descricao: lancamento.descricao, valor: parseFloat(String(lancamento.valor)), data_despesa: lancamento.data_despesa?.split('T')[0] || '' },
+function EditLancamentoModal({ lancamento, rubricas, onClose, onSubmit, isPending }: { lancamento: Lancamento; rubricas: RubricaProjeto[] | undefined; onClose: () => void; onSubmit: (data: Partial<createLancamentoInput>) => void; isPending: boolean }) {
+  const form = useForm<Partial<createLancamentoInput>>({
+    resolver: zodResolver(createLancamentoSchema.partial()),
+    defaultValues: { rubrica_projeto_id: lancamento.rubrica_projeto_id, descricao: lancamento.descricao, valor: parseFloat(String(lancamento.valor)), data_despesa: lancamento.data_despesa?.split('T')[0] || '' },
     mode: 'onChange',
   });
+  const selectedId = form.watch('rubrica_projeto_id');
+  const valorAtual = form.watch('valor');
+  const selectedRubrica = rubricas?.find((r) => r.id === selectedId);
+  const saldoRubrica = selectedRubrica ? parseFloat(String(selectedRubrica.valor_previsto)) - parseFloat(String(selectedRubrica.valor_executado)) : null;
+  const valorAntigo = lancamento.rubrica_projeto_id === selectedId ? parseFloat(String(lancamento.valor)) : 0;
+  const saldoComReversao = saldoRubrica !== null ? saldoRubrica + valorAntigo : null;
+  const excedeSaldo = saldoComReversao !== null && valorAtual > 0 && valorAtual > saldoComReversao;
 
   return (
     <Modal open={true} onClose={onClose} title="Editar Lancamento"
       footer={
         <>
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
-          <button onClick={form.handleSubmit(onSubmit)} disabled={isPending || !form.formState.isValid}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+          <button onClick={form.handleSubmit(onSubmit)} disabled={isPending || !form.formState.isValid || excedeSaldo}
+            className={`px-4 py-2 rounded-lg text-sm ${isPending || !form.formState.isValid || excedeSaldo ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
             {isPending ? 'Salvando...' : 'Salvar'}
           </button>
         </>
       }>
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Rubrica</label>
+        <select {...form.register('rubrica_projeto_id')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+          {rubricas?.map((r) => <option key={r.id} value={r.id}>{r.rubrica} - {RUBRICA_LABELS[r.rubrica]}</option>)}
+        </select>
+      </div>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Descricao</label>
         <input {...form.register('descricao')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
@@ -300,6 +314,7 @@ function EditLancamentoModal({ lancamento, onClose, onSubmit, isPending }: { lan
         <label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label>
         <input type="number" step="0.01" min="0.01" {...form.register('valor', { valueAsNumber: true })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
         {form.formState.errors.valor && <p className="text-red-500 text-xs mt-1">{form.formState.errors.valor.message}</p>}
+        {excedeSaldo && <p className="text-red-600 text-xs mt-1">Valor excede o saldo disponivel da rubrica (R$ {saldoComReversao?.toLocaleString('pt-BR')}).</p>}
       </div>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>

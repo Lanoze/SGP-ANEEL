@@ -92,7 +92,7 @@ router.put('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
   try {
     const user = req.user!;
     const { id } = req.params;
-    const parsed = createLancamentoSchema.partial().omit({ rubrica_projeto_id: true }).safeParse(req.body);
+    const parsed = createLancamentoSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
       return;
@@ -107,20 +107,22 @@ router.put('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
       const existingResult = await client.query<Lancamento>(`SELECT * FROM lancamentos WHERE id = $1 FOR UPDATE`, [id]);
       const existing = existingResult.rows[0];
       if (!existing) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Lancamento nao encontrado' }); return; }
-      if (fields.valor !== undefined) {
+      const novaRubrica = (fields.rubrica_projeto_id as string) || existing.rubrica_projeto_id;
+      const novoValor = fields.valor !== undefined ? fields.valor : parseFloat(String(existing.valor));
+      if (fields.valor !== undefined || fields.rubrica_projeto_id !== undefined) {
         const locked = await client.query<{ valor_previsto: number }>(
           `SELECT valor_previsto FROM rubricas_projeto WHERE id = $1 FOR UPDATE`,
-          [existing.rubrica_projeto_id]
+          [novaRubrica]
         );
         if (locked.rows.length === 0) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Rubrica nao encontrada' }); return; }
         const valorPrevisto = parseFloat(String(locked.rows[0].valor_previsto));
         const saldoResult = await client.query<{ saldo: number }>(
           `SELECT $1::numeric - COALESCE(SUM(l.valor), 0) + $2 as saldo
-           FROM lancamentos l WHERE l.rubrica_projeto_id = $3`,
-          [valorPrevisto, parseFloat(String(existing.valor)), existing.rubrica_projeto_id]
+           FROM lancamentos l WHERE l.rubrica_projeto_id = $3 AND l.id != $4`,
+          [valorPrevisto, (novaRubrica === existing.rubrica_projeto_id) ? parseFloat(String(existing.valor)) : 0, novaRubrica, id]
         );
-        const saldoComReversao = saldoResult.rows[0]?.saldo ?? 0;
-        if (saldoComReversao < fields.valor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldoComReversao }); return; }
+        const saldoDisponivel = saldoResult.rows[0]?.saldo ?? 0;
+        if (saldoDisponivel < novoValor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldoDisponivel }); return; }
       }
       const setClauses = keys.map((k, i) => `${k} = $${i + 1}`);
       const values = keys.map((k) => (fields as Record<string, unknown>)[k]);

@@ -73,7 +73,7 @@ function ProjetosContent() {
 
 function CreateProjetoModal({ onClose, onSubmit, isPending }: { onClose: () => void; onSubmit: (d: createProjetoInput) => void; isPending: boolean }) {
   const { data: usuarios } = useQuery<Usuario[]>({ queryKey: ['usuarios'], queryFn: async () => (await api.get('/usuarios')).data });
-  const coordOptions = usuarios?.filter((u) => u.perfil === 'GESTOR' || u.perfil === 'COORDENADOR').map((u) => ({ value: u.id, label: `${u.nome_completo} (${u.perfil})` })) || [];
+  const coordOptions = usuarios?.filter((u) => u.perfil === 'COORDENADOR').map((u) => ({ value: u.id, label: u.nome_completo })) || [];
 
   const form = useForm<createProjetoInput>({
     resolver: zodResolver(createProjetoSchema),

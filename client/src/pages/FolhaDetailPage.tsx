@@ -163,7 +163,7 @@ function FolhaContent() {
       )}
 
       {showAlocacao && (
-        <AlocacaoModal projetoId={projeto_id!} usuarios={usuarios} onClose={() => setShowAlocacao(false)}
+        <AlocacaoModal projetoId={projeto_id!} usuarios={usuarios} alocados={folha?.map((a) => a.usuario_id) || []} onClose={() => setShowAlocacao(false)}
           onSubmit={(data) => alocacaoMutation.mutate(data)} isPending={alocacaoMutation.isPending} />
       )}
 
@@ -213,8 +213,8 @@ const NIVEL_OPTIONS = [
   { value: '3', label: 'Nível 3 (Dobro)' },
 ];
 
-function AlocacaoModal({ projetoId, usuarios, onClose, onSubmit, isPending }: {
-  projetoId: string; usuarios: Usuario[] | undefined; onClose: () => void;
+function AlocacaoModal({ projetoId, usuarios, alocados, onClose, onSubmit, isPending }: {
+  projetoId: string; usuarios: Usuario[] | undefined; alocados: string[]; onClose: () => void;
   onSubmit: (data: createAlocacaoInput) => void; isPending: boolean;
 }) {
   const form = useForm<createAlocacaoInput>({
@@ -223,7 +223,7 @@ function AlocacaoModal({ projetoId, usuarios, onClose, onSubmit, isPending }: {
     mode: 'onChange',
   });
 
-  const usuarioOptions = usuarios?.map((u) => ({ value: u.id, label: `${u.nome_completo} (${u.perfil})` })) || [];
+  const usuarioOptions = usuarios?.filter((u) => !alocados.includes(u.id)).map((u) => ({ value: u.id, label: `${u.nome_completo} (${u.perfil})` })) || [];
   const nivelAcademicoOptions = Object.keys(NOMINAL_VALUES).map((k) => ({ value: k, label: k }));
 
   return (

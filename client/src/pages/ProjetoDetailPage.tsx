@@ -222,9 +222,11 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, er
     mode: 'onChange',
   });
   const selectedId = form.watch('rubrica_projeto_id');
+  const valorAtual = form.watch('valor');
   const selectedRubrica = rubricas?.find((r) => r.id === selectedId);
   const saldoRubrica = selectedRubrica ? parseFloat(String(selectedRubrica.valor_previsto)) - parseFloat(String(selectedRubrica.valor_executado)) : null;
   const semSaldo = saldoRubrica !== null && saldoRubrica <= 0;
+  const excedeSaldo = saldoRubrica !== null && valorAtual > 0 && valorAtual > saldoRubrica;
 
   useEffect(() => {
     if (rubricaId) form.setValue('rubrica_projeto_id', rubricaId, { shouldValidate: true });
@@ -235,8 +237,8 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, er
       footer={
         <>
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
-          <button onClick={form.handleSubmit(onSubmit)} disabled={isPending || !form.formState.isValid || semSaldo}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+          <button onClick={form.handleSubmit(onSubmit)} disabled={isPending || !form.formState.isValid || semSaldo || excedeSaldo}
+            className={`px-4 py-2 rounded-lg text-sm ${isPending || !form.formState.isValid || semSaldo || excedeSaldo ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
             {isPending ? 'Registrando...' : 'Registrar'}
           </button>
         </>
@@ -259,6 +261,7 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, er
         <label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label>
         <input type="number" step="0.01" min="0.01" {...form.register('valor', { valueAsNumber: true })} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
         {form.formState.errors.valor && <p className="text-red-500 text-xs mt-1">{form.formState.errors.valor.message}</p>}
+        {excedeSaldo && <p className="text-red-600 text-xs mt-1">Valor excede o saldo disponivel da rubrica (R$ {saldoRubrica?.toLocaleString('pt-BR')}).</p>}
       </div>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Data</label>

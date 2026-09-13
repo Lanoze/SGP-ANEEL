@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query, pool, setAuditContext } from '../lib/db';
+import { query, queryOne, pool, setAuditContext } from '../lib/db';
 import { createAuditLog } from '../lib/audit';
 import { requireAuth, requireRole } from '../lib/rbac';
 import { createLancamentoSchema } from '../lib/schemas';

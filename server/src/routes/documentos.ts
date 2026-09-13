@@ -3,11 +3,10 @@ import { query, queryOne, pool, setAuditContext } from '../lib/db';
 import { createAuditLog } from '../lib/audit';
 import { requireAuth, requireRole, canAccessContratosRH, extractUser } from '../lib/rbac';
 import crypto from 'crypto';
-import multer from 'multer';
+import Busboy from 'busboy';
 import type { DocumentoMetadados } from '../lib/types';
 
 const router = Router();
-const upload = multer({ storage: multer.memoryStorage() });
 
 const EXT_MAP: Record<string, string> = {
   '.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
@@ -93,65 +92,120 @@ router.get('/:projeto_id', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/:projeto_id/upload', requireAuth, upload.single('arquivo'), async (req, res) => {
+router.post('/:projeto_id/upload', requireAuth, async (req, res) => {
   try {
     const user = extractUser(req);
     if (!user) { res.status(401).json({ error: 'Não autenticado' }); return; }
     const { userId: usuario_id, perfil } = user;
+    const currentUserId = user.userId;
 
     if (perfil === 'BOLSISTA') {
       res.status(403).json({ error: 'Acesso negado: bolsistas não podem enviar documentos' });
       return;
     }
 
-    const arquivo = req.file;
-    const categoria = req.body.categoria as string;
-
-    if (!arquivo) { res.status(400).json({ error: 'Nenhum arquivo enviado' }); return; }
-    if (!categoria) { res.status(400).json({ error: 'Categoria obrigatória' }); return; }
-
-    if (categoria === 'CONTRATO_RH') {
-      const projeto = await queryOne<{ coordenador_id: string }>(
-        'SELECT coordenador_id FROM projetos WHERE id = $1', [req.params.projeto_id]
-      );
-      if (!canAccessContratosRH(perfil, req.params.projeto_id, user.userId, projeto?.coordenador_id)) {
-        res.status(403).json({ error: 'Acesso negado: contratos de RH restritos a gestores e coordenadores do projeto' });
-        return;
-      }
-    }
-
-    const buffer = arquivo.buffer;
-    const extensao = '.' + arquivo.originalname.split('.').pop()?.toLowerCase();
-
-    const validacao = validarMagicBytes(buffer, extensao);
-    if (!validacao.valido) {
-      res.status(422).json({ error: `Arquivo inválido: assinatura binária não confere. Esperado ${validacao.esperado}, detectado ${validacao.detectado}` });
+    const contentType = req.headers['content-type'] || '';
+    if (!contentType.includes('multipart/form-data')) {
+      res.status(400).json({ error: 'Content-Type deve ser multipart/form-data' });
       return;
     }
 
-    const hash = crypto.createHash('sha256').update(buffer).digest('hex');
-    const mimeType = detectarMimeType(buffer, extensao);
+    const busboy = Busboy({ headers: req.headers, limits: { fileSize: 50 * 1024 * 1024 } });
 
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await setAuditContext(client, usuario_id);
+    let arquivoNome = '';
+    let arquivoExt = '';
+    let categoria = '';
+    let detectedMime = '';
+    let hashHex = '';
+    let tamanhoBytes = 0;
+    const fileChunks: Buffer[] = [];
+    let fileFinished = false;
+    let formProcessed = false;
+    let responseSent = false;
 
-      const metaResult = await client.query(
-        `INSERT INTO documentos_metadados (projeto_id, categoria, nome_arquivo, extensao, mime_type, tamanho_bytes, hash_sha256, usuario_upload_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-        [req.params.projeto_id, categoria, arquivo.originalname, extensao, mimeType, arquivo.size, hash, usuario_id]
-      );
-      const documentoId = metaResult.rows[0].id;
+    const hash = crypto.createHash('sha256');
 
-      await client.query('INSERT INTO documentos_payload (documento_id, conteudo_binario) VALUES ($1, $2)', [documentoId, buffer]);
+    busboy.on('field', (name: string, value: string) => {
+      if (name === 'categoria') categoria = value;
+    });
 
-      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-      await createAuditLog({ usuario_id, acao: 'UPLOAD', tabela_origem: 'documentos_metadados', registro_id: documentoId, estado_posterior: { nome_arquivo: arquivo.originalname, categoria, hash_sha256: hash }, endereco_ip: String(ip) });
+    busboy.on('file', (fieldname: string, stream: NodeJS.ReadableStream, info: { filename: string; encoding: string; mimeType: string }) => {
+      arquivoNome = info.filename;
+      arquivoExt = '.' + arquivoNome.split('.').pop()?.toLowerCase();
+      detectedMime = info.mimeType;
 
-      await client.query('COMMIT');
-      res.status(201).json({ id: documentoId, nome_arquivo: arquivo.originalname, extensao, mime_type: mimeType, tamanho_bytes: arquivo.size, hash_sha256: hash, categoria });
-    } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+      stream.on('data', (chunk: Buffer) => {
+        hash.update(chunk);
+        fileChunks.push(chunk);
+        tamanhoBytes += chunk.length;
+      });
+
+      stream.on('end', () => {
+        fileFinished = true;
+        tryFinish();
+      });
+    });
+
+    busboy.on('finish', () => {
+      formProcessed = true;
+      tryFinish();
+    });
+
+    busboy.on('error', () => {
+      if (!responseSent) { responseSent = true; res.status(500).json({ error: 'Erro no parser multipart' }); }
+    });
+
+    async function tryFinish() {
+      if (!formProcessed || !fileFinished || responseSent) return;
+      responseSent = true;
+
+      if (!arquivoNome) { res.status(400).json({ error: 'Nenhum arquivo enviado' }); return; }
+      if (!categoria) { res.status(400).json({ error: 'Categoria obrigatória' }); return; }
+
+      if (categoria === 'CONTRATO_RH') {
+        const projeto = await queryOne<{ coordenador_id: string }>(
+          'SELECT coordenador_id FROM projetos WHERE id = $1', [req.params.projeto_id]
+        );
+        if (!canAccessContratosRH(perfil, req.params.projeto_id, currentUserId, projeto?.coordenador_id)) {
+          res.status(403).json({ error: 'Acesso negado: contratos de RH restritos a gestores e coordenadores do projeto' });
+          return;
+        }
+      }
+
+      const buffer = Buffer.concat(fileChunks);
+      hashHex = hash.digest('hex');
+
+      const validacao = validarMagicBytes(buffer, arquivoExt);
+      if (!validacao.valido) {
+        res.status(422).json({ error: `Arquivo inválido: assinatura binária não confere. Esperado ${validacao.esperado}, detectado ${validacao.detectado}` });
+        return;
+      }
+
+      const mimeType = detectarMimeType(buffer, arquivoExt);
+
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await setAuditContext(client, usuario_id);
+
+        const metaResult = await client.query(
+          `INSERT INTO documentos_metadados (projeto_id, categoria, nome_arquivo, extensao, mime_type, tamanho_bytes, hash_sha256, usuario_upload_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+          [req.params.projeto_id, categoria, arquivoNome, arquivoExt, mimeType, tamanhoBytes, hashHex, usuario_id]
+        );
+        const documentoId = metaResult.rows[0].id;
+
+        await client.query('INSERT INTO documentos_payload (documento_id, conteudo_binario) VALUES ($1, $2)', [documentoId, buffer]);
+
+        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+        await createAuditLog({ usuario_id, acao: 'UPLOAD', tabela_origem: 'documentos_metadados', registro_id: documentoId, estado_posterior: { nome_arquivo: arquivoNome, categoria, hash_sha256: hashHex }, endereco_ip: String(ip) });
+
+        await client.query('COMMIT');
+        res.status(201).json({ id: documentoId, nome_arquivo: arquivoNome, extensao: arquivoExt, mime_type: mimeType, tamanho_bytes: tamanhoBytes, hash_sha256: hashHex, categoria });
+      } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+    }
+
+    req.pipe(busboy);
   } catch (error) {
     console.error('Upload documento error:', error);
     res.status(500).json({ error: 'Erro interno' });
@@ -183,6 +237,16 @@ router.post('/upload-stream', requireAuth, async (req, res) => {
       return;
     }
 
+    // Validate magic bytes on first chunk only (streaming-friendly)
+    if (chunkIndex === 0) {
+      const ext = fileName.includes('.') ? '.' + fileName.split('.').pop()?.toLowerCase() : '';
+      const validacao = validarMagicBytes(chunk, ext);
+      if (!validacao.valido) {
+        res.status(422).json({ error: `Arquivo inválido: assinatura binária não confere. Esperado ${validacao.esperado}, detectado ${validacao.detectado}` });
+        return;
+      }
+    }
+
     // Store chunk in database (serverless-safe)
     await query(
       `INSERT INTO upload_chunks (file_id, chunk_index, chunk_data) VALUES ($1, $2, $3)
@@ -200,25 +264,25 @@ router.post('/upload-stream', requireAuth, async (req, res) => {
       return;
     }
 
-    // Reassemble chunks from database
+    // All chunks received — stream from DB to compute SHA-256 without holding full buffer in RAM
+    const hash = crypto.createHash('sha256');
     const rows = await query<{ chunk_data: Buffer }>(
       'SELECT chunk_data FROM upload_chunks WHERE file_id = $1 ORDER BY chunk_index', [fileId]
     );
-    const fullContent = Buffer.concat(rows.map((r) => Buffer.from(r.chunk_data)));
+    const chunks: Buffer[] = [];
+    for (const row of rows) {
+      const buf = Buffer.from(row.chunk_data);
+      hash.update(buf);
+      chunks.push(buf);
+    }
+    const fullContent = Buffer.concat(chunks);
+    const hashHex = hash.digest('hex');
 
     // Clean up chunks
     await query('DELETE FROM upload_chunks WHERE file_id = $1', [fileId]);
 
-    const hash = crypto.createHash('sha256').update(fullContent).digest('hex');
     const ext = fileName.includes('.') ? '.' + fileName.split('.').pop()?.toLowerCase() : '';
     const mimeType = EXT_MAP[ext] || 'application/octet-stream';
-
-    // Magic bytes validation
-    const validacao = validarMagicBytes(fullContent, ext);
-    if (!validacao.valido) {
-      res.status(422).json({ error: `Arquivo inválido: assinatura binária não confere. Esperado ${validacao.esperado}, detectado ${validacao.detectado}` });
-      return;
-    }
 
     if (categoria === 'CONTRATO_RH') {
       const projeto = await queryOne<{ coordenador_id: string }>(
@@ -238,7 +302,7 @@ router.post('/upload-stream', requireAuth, async (req, res) => {
       const metaResult = await client.query(
         `INSERT INTO documentos_metadados (projeto_id, categoria, nome_arquivo, extensao, mime_type, tamanho_bytes, hash_sha256, usuario_upload_id)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-        [projetoId, categoria, fileName, ext, mimeType, fileSize, hash, user.userId]
+        [projetoId, categoria, fileName, ext, mimeType, fileSize, hashHex, user.userId]
       );
       const docId = metaResult.rows[0].id;
 
@@ -252,7 +316,7 @@ router.post('/upload-stream', requireAuth, async (req, res) => {
       const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
       await createAuditLog({
         usuario_id: user.userId, acao: 'UPLOAD', tabela_origem: 'documentos_metadados',
-        registro_id: docId, estado_posterior: { nome_arquivo: fileName, categoria, tamanho: fileSize, hash },
+        registro_id: docId, estado_posterior: { nome_arquivo: fileName, categoria, tamanho: fileSize, hash: hashHex },
         endereco_ip: String(ip),
       });
 

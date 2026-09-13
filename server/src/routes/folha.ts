@@ -153,7 +153,7 @@ router.post('/baixar-individual', requireRole(['GESTOR']), async (req, res) => {
         [competencia.rubrica_projeto_id]
       );
 
-      if (!rubrica || rubrica.saldo < competencia.valor_devido) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente' }); return; }
+      if (!rubrica || rubrica.saldo < competencia.valor_devido) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: rubrica?.saldo ?? 0 }); return; }
 
       const saldoAnterior = rubrica.saldo;
 
@@ -224,7 +224,7 @@ router.post('/baixar-lote', requireRole(['GESTOR']), async (req, res) => {
         [rubrica_projeto_id]
       );
 
-      if (!rubrica || rubrica.saldo < totalFolha) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente' }); return; }
+      if (!rubrica || rubrica.saldo < totalFolha) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: rubrica?.saldo ?? 0, total_folha: totalFolha }); return; }
 
       const saldoAnterior = rubrica.saldo;
 

@@ -28,7 +28,7 @@ router.post('/', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
         [rubrica_projeto_id]
       );
       if (!rubrica) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Rubrica não encontrada' }); return; }
-      if (rubrica.saldo < valor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', saldo_disponivel: rubrica.saldo }); return; }
+      if (rubrica.saldo < valor) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: rubrica.saldo }); return; }
       const lancamento = await queryOne<Lancamento>(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, $4, $5) RETURNING *`,

@@ -148,17 +148,19 @@ router.post('/baixar-individual', requireRole(['GESTOR']), async (req, res) => {
 
       if (!competencia) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Competência não encontrada ou já liquidada' }); return; }
 
-      const lockedResult = await client.query(
-        `SELECT 1 FROM rubricas_projeto WHERE id = $1 FOR UPDATE`,
+      const lockedResult = await client.query<{ valor_previsto: number }>(
+        `SELECT valor_previsto FROM rubricas_projeto WHERE id = $1 FOR UPDATE`,
         [competencia.rubrica_projeto_id]
       );
+      if (lockedResult.rows.length === 0) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Rubrica RH nao encontrada' }); return; }
+      const valorPrevisto = parseFloat(String(lockedResult.rows[0].valor_previsto));
       const saldoResult = await client.query<{ saldo: number }>(
         `SELECT $1::numeric - COALESCE(SUM(l.valor), 0) as saldo
-         FROM lancamentos l WHERE l.rubrica_projeto_id = $1`,
-        [competencia.rubrica_projeto_id]
+         FROM lancamentos l WHERE l.rubrica_projeto_id = $2`,
+        [valorPrevisto, competencia.rubrica_projeto_id]
       );
       const saldo = saldoResult.rows[0]?.saldo ?? 0;
-      if (lockedResult.rows.length === 0 || saldo < competencia.valor_devido) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldo }); return; }
+      if (saldo < competencia.valor_devido) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldo }); return; }
 
       const saldoAnterior = saldo;
 
@@ -224,18 +226,20 @@ router.post('/baixar-lote', requireRole(['GESTOR']), async (req, res) => {
       const totalFolha = competencias.reduce((sum, c) => sum + parseFloat(String(c.valor_devido)), 0);
       const rubrica_projeto_id = competencias[0].rubrica_projeto_id;
 
-      const lockedLoteResult = await client.query(
-        `SELECT 1 FROM rubricas_projeto WHERE id = $1 FOR UPDATE`,
+      const lockedLoteResult = await client.query<{ valor_previsto: number }>(
+        `SELECT valor_previsto FROM rubricas_projeto WHERE id = $1 FOR UPDATE`,
         [rubrica_projeto_id]
       );
+      if (lockedLoteResult.rows.length === 0) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Rubrica RH nao encontrada' }); return; }
+      const valorPrevistoLote = parseFloat(String(lockedLoteResult.rows[0].valor_previsto));
       const rubricaLoteResult = await client.query<{ saldo: number }>(
         `SELECT $1::numeric - COALESCE(SUM(l.valor), 0) as saldo
-         FROM lancamentos l WHERE l.rubrica_projeto_id = $1`,
-        [rubrica_projeto_id]
+         FROM lancamentos l WHERE l.rubrica_projeto_id = $2`,
+        [valorPrevistoLote, rubrica_projeto_id]
       );
       const saldo = rubricaLoteResult.rows[0]?.saldo ?? 0;
 
-      if (lockedLoteResult.rows.length === 0 || saldo < totalFolha) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldo, total_folha: totalFolha }); return; }
+      if (saldo < totalFolha) { await client.query('ROLLBACK'); res.status(400).json({ error: 'Saldo RH insuficiente', code: 'ESTOURO_DE_RUBRICA', saldo_disponivel: saldo, total_folha: totalFolha }); return; }
 
       const saldoAnterior = saldo;
 

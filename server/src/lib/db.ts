@@ -27,7 +27,8 @@ export async function queryOne<T = Record<string, unknown>>(text: string, params
 }
 
 export async function setAuditContext(client: PoolClient, usuarioId: string | null): Promise<void> {
-  await client.query(`SET LOCAL app.current_user_id = $1`, [usuarioId || '']);
+  const safeId = (usuarioId || '').replace(/'/g, "''");
+  await client.query(`SET LOCAL app.current_user_id = '${safeId}'`);
 }
 
 export { pool };

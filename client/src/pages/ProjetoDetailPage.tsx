@@ -41,9 +41,11 @@ function ProjetoDetalheContent() {
   const { data: rubricas } = useQuery({ queryKey: ['rubricas', id], queryFn: async () => (await api.get<RubricaProjeto[]>(`/projetos/${id}/rubricas`)).data, enabled: !!id && canViewRubricas });
   const { data: lancamentos } = useQuery({ queryKey: ['lancamentos', selectedRubrica], queryFn: async () => (await api.get<{ data: Lancamento[] }>(`/lancamentos/rubrica/${selectedRubrica}`)).data.data, enabled: !!selectedRubrica });
 
+  const [lancamentoError, setLancamentoError] = useState<string | null>(null);
   const lancamentoMutation = useMutation({
     mutationFn: async (data: createLancamentoInput) => (await api.post('/lancamentos', data)).data,
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rubricas'] }); queryClient.invalidateQueries({ queryKey: ['lancamentos'] }); setShowLancamento(false); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rubricas'] }); queryClient.invalidateQueries({ queryKey: ['lancamentos'] }); setShowLancamento(false); setLancamentoError(null); },
+    onError: (err: unknown) => { const msg = (err && typeof err === 'object' && 'response' in err) ? (err as { response: { data?: { error?: string } } }).response?.data?.error || 'Erro ao registrar lançamento' : 'Erro ao registrar lançamento'; setLancamentoError(msg); },
   });
 
   const updateMutation = useMutation({
@@ -130,9 +132,10 @@ function ProjetoDetalheContent() {
             <LancamentoModal
               rubricaId={selectedRubrica}
               rubricas={rubricas}
-              onClose={() => setShowLancamento(false)}
-              onSubmit={(data) => lancamentoMutation.mutate(data)}
+              onClose={() => { setShowLancamento(false); setLancamentoError(null); }}
+              onSubmit={(data) => { setLancamentoError(null); lancamentoMutation.mutate(data); }}
               isPending={lancamentoMutation.isPending}
+              error={lancamentoError}
             />
           )}
           {editing && projeto && (
@@ -159,7 +162,7 @@ function ProjetoDetalheContent() {
   );
 }
 
-function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending }: { rubricaId: string | null; rubricas: RubricaProjeto[] | undefined; onClose: () => void; onSubmit: (data: createLancamentoInput) => void; isPending: boolean }) {
+function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, error }: { rubricaId: string | null; rubricas: RubricaProjeto[] | undefined; onClose: () => void; onSubmit: (data: createLancamentoInput) => void; isPending: boolean; error?: string | null }) {
   const rubricaLabel = rubricas?.find((r) => r.id === rubricaId);
   const form = useForm<createLancamentoInput>({
     resolver: zodResolver(createLancamentoSchema),
@@ -212,6 +215,7 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending }: 
         <input type="date" {...form.register('data_despesa')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
         {form.formState.errors.data_despesa && <p className="text-red-500 text-xs mt-1">{form.formState.errors.data_despesa.message}</p>}
       </div>
+      {error && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{error}</div>}
     </Modal>
   );
 }

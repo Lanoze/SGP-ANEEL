@@ -10,6 +10,7 @@ import FolhaPage from './pages/FolhaPage';
 import FolhaDetailPage from './pages/FolhaDetailPage';
 import RelatoriosPage from './pages/RelatoriosPage';
 import AuditoriaPage from './pages/AuditoriaPage';
+import UsuariosPage from './pages/UsuariosPage';
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
         <Route path="/folha/:projeto_id" element={<FolhaDetailPage />} />
         <Route path="/relatorios" element={<RelatoriosPage />} />
         <Route path="/auditoria" element={<AuditoriaPage />} />
+        <Route path="/usuarios" element={<UsuariosPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </AuthProvider>

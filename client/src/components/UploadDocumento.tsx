@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Progress from '@radix-ui/react-progress';
 import api from '../lib/api';
@@ -40,8 +40,35 @@ export default function UploadDocumento({ projetoId, onSuccess }: UploadDocument
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState('');
   const [validating, setValidating] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   const CHUNK_SIZE = 1024 * 1024;
+
+  const handleFile = useCallback((file: File) => {
+    if (file.size > 50 * 1024 * 1024) { setError('Arquivo excede 50MB'); return; }
+    setArquivo(file);
+    setError('');
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  }, [handleFile]);
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
@@ -102,14 +129,16 @@ export default function UploadDocumento({ projetoId, onSuccess }: UploadDocument
 
   async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 50 * 1024 * 1024) { setError('Arquivo excede 50MB'); return; }
-    setArquivo(file);
-    setError('');
+    if (file) handleFile(file);
   }
 
   return (
-    <div className="bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl p-6">
+    <div
+      className={`bg-slate-50 border-2 border-dashed rounded-xl p-6 transition-colors ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300'}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="flex items-center gap-4">
         <div className="flex-1">
           <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect}
@@ -117,7 +146,7 @@ export default function UploadDocumento({ projetoId, onSuccess }: UploadDocument
           {!arquivo ? (
             <button onClick={() => fileInputRef.current?.click()}
               className="w-full py-8 text-center text-slate-500 hover:text-slate-700">
-              Arraste ou clique para selecionar arquivo
+              {isDragging ? 'Solte o arquivo aqui' : 'Arraste ou clique para selecionar arquivo'}
             </button>
           ) : (
             <div className="space-y-3">

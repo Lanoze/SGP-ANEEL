@@ -216,14 +216,15 @@ function ProjetoDetalheContent() {
 }
 
 function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, error }: { rubricaId: string | null; rubricas: RubricaProjeto[] | undefined; onClose: () => void; onSubmit: (data: createLancamentoInput) => void; isPending: boolean; error?: string | null }) {
-  const rubricaLabel = rubricas?.find((r) => r.id === rubricaId);
-  const saldoRubrica = rubricaLabel ? parseFloat(String(rubricaLabel.valor_previsto)) - parseFloat(String(rubricaLabel.valor_executado)) : null;
-  const semSaldo = saldoRubrica !== null && saldoRubrica <= 0;
   const form = useForm<createLancamentoInput>({
     resolver: zodResolver(createLancamentoSchema),
     defaultValues: { rubrica_projeto_id: rubricaId || '', descricao: '', valor: 0, data_despesa: '' },
     mode: 'onChange',
   });
+  const selectedId = form.watch('rubrica_projeto_id');
+  const selectedRubrica = rubricas?.find((r) => r.id === selectedId);
+  const saldoRubrica = selectedRubrica ? parseFloat(String(selectedRubrica.valor_previsto)) - parseFloat(String(selectedRubrica.valor_executado)) : null;
+  const semSaldo = saldoRubrica !== null && saldoRubrica <= 0;
 
   useEffect(() => {
     if (rubricaId) form.setValue('rubrica_projeto_id', rubricaId, { shouldValidate: true });
@@ -242,17 +243,10 @@ function LancamentoModal({ rubricaId, rubricas, onClose, onSubmit, isPending, er
       }>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Rubrica</label>
-        {rubricaId && rubricaLabel ? (
-          <div className="px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-700">
-            <span className="font-mono font-bold bg-slate-200 px-1.5 py-0.5 rounded mr-2">{rubricaLabel.rubrica}</span>
-            {RUBRICA_LABELS[rubricaLabel.rubrica]}
-          </div>
-        ) : (
-          <select {...form.register('rubrica_projeto_id')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
-            <option value="">Selecione a rubrica...</option>
-            {rubricas?.map((r) => <option key={r.id} value={r.id}>{r.rubrica} - {RUBRICA_LABELS[r.rubrica]}</option>)}
-          </select>
-        )}
+        <select {...form.register('rubrica_projeto_id')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
+          <option value="">Selecione a rubrica...</option>
+          {rubricas?.map((r) => <option key={r.id} value={r.id}>{r.rubrica} - {RUBRICA_LABELS[r.rubrica]}</option>)}
+        </select>
         {form.formState.errors.rubrica_projeto_id && <p className="text-red-500 text-xs mt-1">{form.formState.errors.rubrica_projeto_id.message}</p>}
       </div>
       {semSaldo && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">Saldo insuficiente nesta rubrica (R$ {saldoRubrica?.toLocaleString('pt-BR')}). Nao e possivel registrar lancamentos.</div>}

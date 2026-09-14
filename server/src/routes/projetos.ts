@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query, queryOne } from '../lib/db';
+import { query, queryOne, pool } from '../lib/db';
 import { requireAuth, requireRole } from '../lib/rbac';
 import { createProjetoSchema, updateProjetoSchema } from '../lib/schemas';
 import type { Projeto } from '../lib/types';
@@ -160,17 +160,34 @@ router.put('/:id', requireRole(['GESTOR']), async (req, res) => {
 });
 
 router.delete('/:id', requireRole(['GESTOR']), async (req, res) => {
+  const client = await pool.connect();
   try {
     const existing = await queryOne<Projeto>('SELECT * FROM projetos WHERE id = $1', [req.params.id]);
     if (!existing) {
       res.status(404).json({ error: 'Projeto não encontrado' });
       return;
     }
-    await query('DELETE FROM projetos WHERE id = $1', [req.params.id]);
+    const projetoId = req.params.id;
+    await client.query('BEGIN');
+
+    // Delete competencias_folha via alocacao_rh
+    await client.query('DELETE FROM competencias_folha WHERE alocacao_rh_id IN (SELECT id FROM alocacao_rh WHERE projeto_id = $1)', [projetoId]);
+    await client.query('DELETE FROM alocacao_rh WHERE projeto_id = $1', [projetoId]);
+    await client.query('DELETE FROM upload_chunks');
+    await client.query('DELETE FROM documentos_payload WHERE documento_metadados_id IN (SELECT id FROM documentos_metadados WHERE projeto_id = $1)', [projetoId]);
+    await client.query('DELETE FROM documentos_metadados WHERE projeto_id = $1', [projetoId]);
+    await client.query('DELETE FROM lancamentos WHERE rubrica_projeto_id IN (SELECT id FROM rubricas_projeto WHERE projeto_id = $1)', [projetoId]);
+    await client.query('DELETE FROM rubricas_projeto WHERE projeto_id = $1', [projetoId]);
+    await client.query('DELETE FROM projetos WHERE id = $1', [projetoId]);
+
+    await client.query('COMMIT');
     res.json({ message: 'Projeto excluído' });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Delete projeto error:', error);
     res.status(500).json({ error: 'Erro interno' });
+  } finally {
+    client.release();
   }
 });
 

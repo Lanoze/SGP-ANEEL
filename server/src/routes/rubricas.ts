@@ -1,6 +1,5 @@
 import { Router } from 'express';
-import { query, queryOne } from '../lib/db';
-import { createAuditLog } from '../lib/audit';
+import { query, queryOne, pool, setAuditContext } from '../lib/db';
 import { requireAuth, requireRole, requireMinRole } from '../lib/rbac';
 import type { RubricaProjeto } from '../lib/types';
 
@@ -26,6 +25,7 @@ router.get('/:id/rubricas', requireMinRole('PESQUISADOR'), async (req, res) => {
 });
 
 router.put('/:id/rubricas', requireRole(['GESTOR']), async (req, res) => {
+  const client = await pool.connect();
   try {
     const user = req.user!;
     const { rubrica_id, valor_previsto } = req.body;
@@ -42,17 +42,23 @@ router.put('/:id/rubricas', requireRole(['GESTOR']), async (req, res) => {
       res.status(404).json({ error: 'Rubrica não encontrada' });
       return;
     }
-    await query('UPDATE rubricas_projeto SET valor_previsto = $1 WHERE id = $2', [valor_previsto, rubrica_id]);
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    await createAuditLog({ usuario_id: user.userId, acao: 'UPDATE', tabela_origem: 'rubricas_projeto', registro_id: rubrica_id, estado_anterior: { valor_previsto: existing.valor_previsto }, estado_posterior: { valor_previsto }, endereco_ip: String(ip) });
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+    await client.query('BEGIN');
+    await setAuditContext(client, user.userId, ip);
+    await client.query('UPDATE rubricas_projeto SET valor_previsto = $1 WHERE id = $2', [valor_previsto, rubrica_id]);
+    await client.query('COMMIT');
     res.json({ message: 'Rubrica atualizada' });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Update rubrica error:', error);
     res.status(500).json({ error: 'Erro interno' });
+  } finally {
+    client.release();
   }
 });
 
 router.put('/:id/rubricas/:rubrica_id', requireRole(['GESTOR']), async (req, res) => {
+  const client = await pool.connect();
   try {
     const user = req.user!;
     const { valor_previsto } = req.body;
@@ -69,13 +75,18 @@ router.put('/:id/rubricas/:rubrica_id', requireRole(['GESTOR']), async (req, res
       res.status(404).json({ error: 'Rubrica não encontrada' });
       return;
     }
-    await query('UPDATE rubricas_projeto SET valor_previsto = $1 WHERE id = $2', [valor_previsto, req.params.rubrica_id]);
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    await createAuditLog({ usuario_id: user.userId, acao: 'UPDATE', tabela_origem: 'rubricas_projeto', registro_id: req.params.rubrica_id, estado_anterior: { valor_previsto: existing.valor_previsto }, estado_posterior: { valor_previsto }, endereco_ip: String(ip) });
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+    await client.query('BEGIN');
+    await setAuditContext(client, user.userId, ip);
+    await client.query('UPDATE rubricas_projeto SET valor_previsto = $1 WHERE id = $2', [valor_previsto, req.params.rubrica_id]);
+    await client.query('COMMIT');
     res.json({ message: 'Rubrica atualizada' });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Update rubrica error:', error);
     res.status(500).json({ error: 'Erro interno' });
+  } finally {
+    client.release();
   }
 });
 

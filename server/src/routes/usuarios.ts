@@ -1,6 +1,5 @@
 import { Router } from 'express';
-import { query, queryOne } from '../lib/db';
-import { createAuditLog } from '../lib/audit';
+import { query, queryOne, pool, setAuditContext } from '../lib/db';
 import { requireAuth, requireRole } from '../lib/rbac';
 import { hashPassword } from '../lib/auth';
 import { createUsuarioSchema } from '../lib/schemas';
@@ -21,6 +20,7 @@ router.get('/', requireAuth, async (_req, res) => {
 });
 
 router.post('/', requireRole(['GESTOR']), async (req, res) => {
+  const client = await pool.connect();
   try {
     const user = req.user!;
     const parsed = createUsuarioSchema.safeParse(req.body);
@@ -37,17 +37,22 @@ router.post('/', requireRole(['GESTOR']), async (req, res) => {
       return;
     }
     const hash = await hashPassword(senha);
-    const result = await queryOne<{ id: string }>(
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+    await client.query('BEGIN');
+    await setAuditContext(client, user.userId, ip);
+    const result = await client.query<{ id: string }>(
       `INSERT INTO usuarios (nome_completo, cpf, email, hash_senha, perfil)
        VALUES ($1, $2, $3, $4, $5) RETURNING id`,
       [nome_completo, cpf, email, hash, perfil]
     );
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    await createAuditLog({ usuario_id: user.userId, acao: 'CREATE', tabela_origem: 'usuarios', registro_id: result!.id, estado_posterior: { nome_completo, cpf, email, perfil }, endereco_ip: String(ip) });
-    res.status(201).json({ id: result!.id, nome_completo, cpf, email, perfil });
+    await client.query('COMMIT');
+    res.status(201).json({ id: result.rows[0].id, nome_completo, cpf, email, perfil });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Create usuario error:', error);
     res.status(500).json({ error: 'Erro interno' });
+  } finally {
+    client.release();
   }
 });
 
@@ -69,6 +74,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 });
 
 router.put('/:id', requireRole(['GESTOR']), async (req, res) => {
+  const client = await pool.connect();
   try {
     const user = req.user!;
     const existing = await queryOne<Usuario>('SELECT * FROM usuarios WHERE id = $1', [req.params.id]);
@@ -87,18 +93,23 @@ router.put('/:id', requireRole(['GESTOR']), async (req, res) => {
     if (updates.length === 0) { res.status(400).json({ error: 'Nenhum campo para atualizar' }); return; }
 
     values.push(req.params.id);
-    await query(`UPDATE usuarios SET ${updates.join(', ')} WHERE id = $${idx}`, values);
-
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    await createAuditLog({ usuario_id: user.userId, acao: 'UPDATE', tabela_origem: 'usuarios', registro_id: req.params.id, estado_anterior: { nome_completo: existing.nome_completo, email: existing.email, perfil: existing.perfil, ativo: existing.ativo }, estado_posterior: { nome_completo, email, perfil, ativo }, endereco_ip: String(ip) });
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+    await client.query('BEGIN');
+    await setAuditContext(client, user.userId, ip);
+    await client.query(`UPDATE usuarios SET ${updates.join(', ')} WHERE id = $${idx}`, values);
+    await client.query('COMMIT');
     res.json({ message: 'Usuário atualizado' });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Update usuario error:', error);
     res.status(500).json({ error: 'Erro interno' });
+  } finally {
+    client.release();
   }
 });
 
 router.delete('/:id', requireRole(['GESTOR']), async (req, res) => {
+  const client = await pool.connect();
   try {
     const user = req.user!;
     if (req.params.id === user.userId) { res.status(400).json({ error: 'Não é possível excluir seu próprio usuário' }); return; }
@@ -106,13 +117,18 @@ router.delete('/:id', requireRole(['GESTOR']), async (req, res) => {
     const existing = await queryOne<Usuario>('SELECT * FROM usuarios WHERE id = $1', [req.params.id]);
     if (!existing) { res.status(404).json({ error: 'Usuário não encontrado' }); return; }
 
-    await query('DELETE FROM usuarios WHERE id = $1', [req.params.id]);
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    await createAuditLog({ usuario_id: user.userId, acao: 'DELETE', tabela_origem: 'usuarios', registro_id: req.params.id, estado_anterior: { nome_completo: existing.nome_completo, email: existing.email, perfil: existing.perfil }, endereco_ip: String(ip) });
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+    await client.query('BEGIN');
+    await setAuditContext(client, user.userId, ip);
+    await client.query('DELETE FROM usuarios WHERE id = $1', [req.params.id]);
+    await client.query('COMMIT');
     res.json({ message: 'Usuário excluído' });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Delete usuario error:', error);
     res.status(500).json({ error: 'Erro interno' });
+  } finally {
+    client.release();
   }
 });
 

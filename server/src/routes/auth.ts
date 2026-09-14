@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateUser, hashPassword } from '../lib/auth';
-import { queryOne, query } from '../lib/db';
+import { queryOne, pool, setAuditContext } from '../lib/db';
 import { createAuditLog } from '../lib/audit';
 import { requireAuth, requireRole } from '../lib/rbac';
 import { loginSchema, changePasswordSchema, resetPasswordSchema } from '../lib/schemas';
@@ -51,6 +51,7 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 router.post('/change-password', requireAuth, async (req, res) => {
+  const client = await pool.connect();
   try {
     const user = req.user!;
     const parsed = changePasswordSchema.safeParse(req.body);
@@ -71,17 +72,23 @@ router.post('/change-password', requireAuth, async (req, res) => {
       return;
     }
     const newHash = await hashPassword(nova_senha);
-    await query('UPDATE usuarios SET hash_senha = $1 WHERE id = $2', [newHash, user.userId]);
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    await createAuditLog({ usuario_id: user.userId, acao: 'UPDATE_SENHA', tabela_origem: 'usuarios', registro_id: user.userId, endereco_ip: String(ip) });
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+    await client.query('BEGIN');
+    await setAuditContext(client, user.userId, ip);
+    await client.query('UPDATE usuarios SET hash_senha = $1 WHERE id = $2', [newHash, user.userId]);
+    await client.query('COMMIT');
     res.json({ message: 'Senha alterada com sucesso' });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Change password error:', error);
     res.status(500).json({ error: 'Erro interno' });
+  } finally {
+    client.release();
   }
 });
 
 router.post('/reset-password', requireRole(['GESTOR']), async (req, res) => {
+  const client = await pool.connect();
   try {
     const user = req.user!;
     const parsed = resetPasswordSchema.safeParse(req.body);
@@ -96,13 +103,18 @@ router.post('/reset-password', requireRole(['GESTOR']), async (req, res) => {
       return;
     }
     const newHash = await hashPassword(nova_senha);
-    await query('UPDATE usuarios SET hash_senha = $1 WHERE id = $2', [newHash, usuario_id]);
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    await createAuditLog({ usuario_id: user.userId, acao: 'RESET_SENHA', tabela_origem: 'usuarios', registro_id: usuario_id, endereco_ip: String(ip) });
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
+    await client.query('BEGIN');
+    await setAuditContext(client, user.userId, ip);
+    await client.query('UPDATE usuarios SET hash_senha = $1 WHERE id = $2', [newHash, usuario_id]);
+    await client.query('COMMIT');
     res.json({ message: 'Senha redefinida com sucesso' });
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Reset password error:', error);
     res.status(500).json({ error: 'Erro interno' });
+  } finally {
+    client.release();
   }
 });
 

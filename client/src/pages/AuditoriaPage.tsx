@@ -152,7 +152,7 @@ function AuditoriaContent() {
                         ) : '—'}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-slate-400">{log.endereco_ip}</td>
+                    <td className="px-4 py-3 text-xs text-slate-400">{log.endereco_ip || '—'}</td>
                   </tr>
                   {isExpanded && (
                     <tr key={`${log.id}-detail`}>

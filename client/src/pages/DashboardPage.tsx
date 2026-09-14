@@ -65,6 +65,47 @@ function DashboardContent() {
         <Card titulo="% Execução" valor={`${pctGeral.toFixed(1)}%`} cor={pctGeral >= 100 ? 'red' : pctGeral >= 80 ? 'amber' : 'green'} />
       </div>
 
+      <h2 className="text-lg font-semibold text-slate-900 mb-4">Visão Geral dos Projetos</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
+        {todasRubricas?.map((item) => {
+          const previsto = item.rubricas?.reduce((s, r) => s + parseFloat(String(r.valor_previsto)), 0) || 0;
+          const executado = item.rubricas?.reduce((s, r) => s + parseFloat(String(r.valor_executado)), 0) || 0;
+          const pct = previsto > 0 ? (executado / previsto) * 100 : 0;
+          const corBarra = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-green-500';
+          return (
+            <a key={item.projeto.id} href={`/projetos/${item.projeto.id}`} className="bg-white rounded-xl shadow p-4 hover:shadow-md transition-shadow block">
+              <div className="flex justify-between items-start mb-2">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-slate-900 truncate">{item.projeto.titulo}</h3>
+                  <span className="text-xs text-slate-400 font-mono">{item.projeto.codigo_aneel}</span>
+                </div>
+                <span className="text-xs font-medium text-slate-500 shrink-0 ml-2">{pct.toFixed(1)}%</span>
+              </div>
+              <div className="flex gap-3 text-xs text-slate-500 mb-2">
+                <span>Previsto: R$ {previsto.toLocaleString('pt-BR')}</span>
+                <span>Executado: R$ {executado.toLocaleString('pt-BR')}</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2">
+                <div className={`${corBarra} h-2 rounded-full transition-all`} style={{ width: `${Math.min(pct, 100)}%` }} />
+              </div>
+              <div className="mt-2 flex gap-1 flex-wrap">
+                {item.rubricas?.map((r) => {
+                  const p = parseFloat(String(r.valor_previsto));
+                  const e = parseFloat(String(r.valor_executado));
+                  const rp = p > 0 ? (e / p) * 100 : 0;
+                  return (
+                    <span key={r.id} className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${rp >= 100 ? 'bg-red-100 text-red-700' : rp >= 80 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                      {r.rubrica} {rp.toFixed(0)}%
+                    </span>
+                  );
+                })}
+              </div>
+            </a>
+          );
+        })}
+      </div>
+
+      <h2 className="text-lg font-semibold text-slate-900 mb-4">Detalhamento por Projeto</h2>
       {todasRubricas?.map((item) => (
         <div key={item.projeto.id} className="bg-white rounded-xl shadow p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">{item.projeto.titulo} <span className="text-sm text-slate-400 font-normal">({item.projeto.codigo_aneel})</span></h2>

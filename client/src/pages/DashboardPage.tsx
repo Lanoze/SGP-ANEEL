@@ -65,6 +65,44 @@ function DashboardContent() {
         <Card titulo="% Execução" valor={`${pctGeral.toFixed(1)}%`} cor={pctGeral >= 100 ? 'red' : pctGeral >= 80 ? 'amber' : 'green'} />
       </div>
 
+      <div className="bg-white rounded-xl shadow p-6 mb-8">
+        <h2 className="text-lg font-semibold mb-4">Todos os Projetos</h2>
+        <div className="space-y-3">
+          {(['RH', 'ST', 'MC', 'EP', 'VD', 'OU'] as const).map((rubrica) => {
+            let previsto = 0;
+            let executado = 0;
+            todasRubricas?.forEach((item) => {
+              const r = item.rubricas?.find((x) => x.rubrica === rubrica);
+              if (r) {
+                previsto += parseFloat(String(r.valor_previsto));
+                executado += parseFloat(String(r.valor_executado));
+              }
+            });
+            const pct = previsto > 0 ? (executado / previsto) * 100 : 0;
+            const corBarra = pct >= 100 ? 'bg-red-500' : pct >= 80 ? 'bg-amber-500' : 'bg-green-500';
+            return (
+              <div key={rubrica} className="border rounded-lg p-3">
+                <div className="flex justify-between items-center mb-1">
+                  <div>
+                    <span className="font-mono font-bold text-sm bg-slate-100 px-2 py-1 rounded">{rubrica}</span>
+                    <span className="ml-2 text-slate-600 text-sm">{RUBRICA_LABELS[rubrica]}</span>
+                  </div>
+                  <span className="text-sm text-slate-500">{pct.toFixed(1)}%</span>
+                </div>
+                <div className="flex gap-4 text-xs text-slate-500 mb-1">
+                  <span>Previsto: R$ {previsto.toLocaleString('pt-BR')}</span>
+                  <span>Executado: R$ {executado.toLocaleString('pt-BR')}</span>
+                  <span>Saldo: R$ {(previsto - executado).toLocaleString('pt-BR')}</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-2">
+                  <div className={`${corBarra} h-2 rounded-full transition-all`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       <h2 className="text-lg font-semibold text-slate-900 mb-4">Visão Geral dos Projetos</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
         {todasRubricas?.map((item) => {

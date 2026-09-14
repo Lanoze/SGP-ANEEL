@@ -474,6 +474,54 @@ router.post('/cancelar', requireRole(['GESTOR', 'COORDENADOR']), async (req, res
   }
 });
 
+router.post('/descancelar', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
+  try {
+    const user = req.user!;
+    const parsed = cancelarCompetenciaSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.issues[0].message });
+      return;
+    }
+    const { competencia_id } = parsed.data;
+
+    const competencia = await queryOne<{ id: string; status: string; valor_devido: number; projeto_coordenador_id: string }>(
+      `SELECT cf.*, p.coordenador_id as projeto_coordenador_id
+       FROM competencias_folha cf
+       JOIN alocacao_rh a ON cf.alocacao_rh_id = a.id
+       JOIN projetos p ON p.id = a.projeto_id
+       WHERE cf.id = $1`,
+      [competencia_id]
+    );
+
+    if (!competencia) { res.status(404).json({ error: 'Competência não encontrada' }); return; }
+    if (competencia.status !== 'CANCELADO') { res.status(400).json({ error: 'Só é possível descancelar competências canceladas' }); return; }
+
+    if (user.perfil === 'COORDENADOR' && competencia.projeto_coordenador_id !== user.userId) {
+      res.status(403).json({ error: 'Coordenador não é responsável por este projeto' });
+      return;
+    }
+
+    await query(
+      "UPDATE competencias_folha SET status = 'PENDENTE' WHERE id = $1",
+      [competencia_id]
+    );
+
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    await createAuditLog({
+      usuario_id: user.userId, acao: 'DESCANCELAR', tabela_origem: 'competencias_folha',
+      registro_id: competencia_id,
+      estado_anterior: { status: 'CANCELADO', valor: competencia.valor_devido },
+      estado_posterior: { status: 'PENDENTE' },
+      endereco_ip: String(ip),
+    });
+
+    res.json({ message: 'Competência restaurada' });
+  } catch (error) {
+    console.error('Descancelar competencia error:', error);
+    res.status(500).json({ error: 'Erro interno' });
+  }
+});
+
 router.delete('/alocacao/:id', requireRole(['GESTOR']), async (req, res) => {
   try {
     const user = req.user!;

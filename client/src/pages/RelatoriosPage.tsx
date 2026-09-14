@@ -45,6 +45,11 @@ export default function RelatoriosPage() {
 
 function RelatoriosContent() {
   const [aba, setAba] = useState<'rubricas' | 'folha' | 'folha_instituicao' | 'pendencias'>('rubricas');
+  const [filtroPerfil, setFiltroPerfil] = useState('');
+  const [filtroNivel, setFiltroNivel] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState('');
+  const [filtroMes, setFiltroMes] = useState('');
+  const [filtroAno, setFiltroAno] = useState('');
 
   const { data: rubricasDados, isLoading: loadingRubricas } = useQuery<RubricaRel[]>({
     queryKey: ['rel-rubricas'],
@@ -72,6 +77,19 @@ function RelatoriosContent() {
 
   const isLoading = loadingRubricas || loadingFolha || loadingPend || loadingInst;
 
+  const niveisUnicos = [...new Set(folhaDados?.map((f) => f.nivel_academico) || [])];
+  const mesesUnicos = [...new Set(folhaDados?.map((f) => f.mes) || [])].sort((a, b) => a - b);
+  const anosUnicos = [...new Set(folhaDados?.map((f) => f.ano) || [])].sort((a, b) => a - b);
+
+  const folhaFiltrada = folhaDados?.filter((f) => {
+    if (filtroPerfil && f.perfil !== filtroPerfil) return false;
+    if (filtroNivel && f.nivel_academico !== filtroNivel) return false;
+    if (filtroStatus && f.status !== filtroStatus) return false;
+    if (filtroMes && f.mes !== parseInt(filtroMes)) return false;
+    if (filtroAno && f.ano !== parseInt(filtroAno)) return false;
+    return true;
+  });
+
   return (
     <div className="p-6">
       <style>{`
@@ -84,6 +102,7 @@ function RelatoriosContent() {
           th, td { padding: 4px 8px !important; }
           body { font-size: 12px !important; }
           @page { margin: 1.5cm; size: landscape; }
+          .print-filter-info { display: block !important; }
         }
       `}</style>
       <div className="flex justify-between items-center mb-6 no-print">
@@ -149,6 +168,72 @@ function RelatoriosContent() {
 
       {aba === 'folha' && !isLoading && (
         <div className="bg-white rounded-xl shadow overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50 border-b flex flex-wrap gap-3 no-print">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Perfil</label>
+              <select value={filtroPerfil} onChange={(e) => setFiltroPerfil(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                <option value="">Todos</option>
+                <option value="GESTOR">Gestor</option>
+                <option value="COORDENADOR">Coordenador</option>
+                <option value="PESQUISADOR">Pesquisador</option>
+                <option value="BOLSISTA">Bolsista</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Nível</label>
+              <select value={filtroNivel} onChange={(e) => setFiltroNivel(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                <option value="">Todos</option>
+                {niveisUnicos.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Status</label>
+              <select value={filtroStatus} onChange={(e) => setFiltroStatus(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                <option value="">Todos</option>
+                <option value="PENDENTE">Pendente</option>
+                <option value="PAGO">Pago</option>
+                <option value="CANCELADO">Cancelado</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Mês</label>
+              <select value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                <option value="">Todos</option>
+                {mesesUnicos.map((m) => <option key={m} value={m}>{MESES[m - 1]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Ano</label>
+              <select value={filtroAno} onChange={(e) => setFiltroAno(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                <option value="">Todos</option>
+                {anosUnicos.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+            {(filtroPerfil || filtroNivel || filtroStatus || filtroMes || filtroAno) && (
+              <div className="flex items-end">
+                <button onClick={() => { setFiltroPerfil(''); setFiltroNivel(''); setFiltroStatus(''); setFiltroMes(''); setFiltroAno(''); }}
+                  className="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg text-sm border border-red-200">Limpar Filtros</button>
+              </div>
+            )}
+          </div>
+          {aba === 'folha' && (
+            <div className="px-4 py-2 bg-slate-50 border-b text-xs text-slate-500 print-filter-info hidden">
+              {(() => {
+                const filtros: string[] = [];
+                if (filtroPerfil) filtros.push(`Perfil: ${filtroPerfil}`);
+                if (filtroNivel) filtros.push(`Nível: ${filtroNivel}`);
+                if (filtroStatus) filtros.push(`Status: ${filtroStatus}`);
+                if (filtroMes) filtros.push(`Mês: ${MESES[parseInt(filtroMes) - 1]}`);
+                if (filtroAno) filtros.push(`Ano: ${filtroAno}`);
+                return (
+                  <>
+                    {filtros.length > 0 && <span className="mr-3">Filtros: <strong>{filtros.join(' · ')}</strong></span>}
+                    <span>Exibindo <strong>{folhaFiltrada?.length ?? 0}</strong> de <strong>{folhaDados?.length ?? 0}</strong> registros</span>
+                  </>
+                );
+              })()}
+            </div>
+          )}
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b"><tr>
               <th className="text-left px-4 py-3 font-medium text-slate-600">Projeto</th>
@@ -161,8 +246,8 @@ function RelatoriosContent() {
               <th className="text-left px-4 py-3 font-medium text-slate-600">Status</th>
             </tr></thead>
             <tbody className="divide-y">
-              {folhaDados?.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">Nenhum dado encontrado</td></tr>}
-              {folhaDados?.map((f, i) => (
+              {folhaFiltrada?.length === 0 && <tr><td colSpan={8} className="px-4 py-8 text-center text-slate-400">Nenhum dado encontrado</td></tr>}
+              {folhaFiltrada?.map((f, i) => (
                 <tr key={i} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-xs">{f.codigo_aneel}</td>
                   <td className="px-4 py-3 font-medium">{f.nome_completo}</td>

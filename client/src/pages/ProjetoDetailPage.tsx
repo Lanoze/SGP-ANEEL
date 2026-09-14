@@ -101,7 +101,7 @@ function ProjetoDetalheContent() {
               {isGestor && (
                 <div className="flex gap-2">
                   <button onClick={() => setEditingProjeto(true)} className="px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 rounded-lg border border-slate-300">Editar</button>
-                  <button onClick={() => setDeletingProjeto(true)} className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-300">Excluir</button>
+                  <button onClick={() => { setDeletingProjeto(true); deleteMutation.reset(); }} className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg border border-red-300">Excluir</button>
                 </div>
               )}
             </div>

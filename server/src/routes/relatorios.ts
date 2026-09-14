@@ -44,7 +44,9 @@ router.get('/', requireMinRole('COORDENADOR'), async (req, res) => {
       const dados = await query(
         `SELECT u.nome_completo, u.perfil, u.email,
                 COUNT(DISTINCT a.projeto_id) as total_projetos,
-                SUM(a.valor_mensal_calculado) as valor_mensal_total,
+                (SELECT COALESCE(SUM(a2.valor_mensal_calculado), 0) FROM alocacao_rh a2
+                 JOIN projetos p2 ON a2.projeto_id = p2.id AND p2.ativo = true
+                 WHERE a2.usuario_id = u.id) as valor_mensal_total,
                 COUNT(CASE WHEN cf.status = 'PENDENTE' THEN 1 END) as competencias_pendentes,
                 COUNT(CASE WHEN cf.status = 'PAGO' THEN 1 END) as competencias_pagas,
                 COALESCE(SUM(CASE WHEN cf.status = 'PENDENTE' THEN cf.valor_devido ELSE 0 END), 0) as total_pendente,

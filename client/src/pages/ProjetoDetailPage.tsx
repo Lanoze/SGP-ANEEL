@@ -7,9 +7,9 @@ import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import Breadcrumbs from '../components/Breadcrumbs';
-import { Modal } from '../components/FormComponents';
+import { Modal, SelectInput } from '../components/FormComponents';
 import { createLancamentoSchema, createProjetoSchema, updateProjetoSchema, type createLancamentoInput, type createProjetoInput } from '../lib/schemas';
-import type { Projeto, RubricaProjeto, Lancamento } from '../types';
+import type { Projeto, RubricaProjeto, Lancamento, Usuario } from '../types';
 
 const RUBRICA_LABELS: Record<string, string> = {
   RH: 'Recursos Humanos', ST: 'Serviços de Terceiros', MC: 'Materiais de Consumo',
@@ -365,9 +365,14 @@ function ConfirmDeleteLancamentoModal({ lancamento, onClose, onConfirm, isPendin
 }
 
 function EditProjetoModal({ projeto, onClose, onSubmit, isPending, error }: { projeto: Projeto; onClose: () => void; onSubmit: (d: Partial<createProjetoInput>) => void; isPending: boolean; error?: string }) {
+  const { data: usuarios } = useQuery<Usuario[]>({ queryKey: ['usuarios'], queryFn: async () => (await api.get('/usuarios')).data });
+  const coordOptions = usuarios?.filter((u) => u.perfil === 'COORDENADOR').map((u) => ({ value: u.id, label: u.nome_completo })) || [];
+
+  const toDateString = (v: string) => v ? v.slice(0, 10) : '';
+
   const form = useForm<createProjetoInput>({
     resolver: zodResolver(updateProjetoSchema),
-    defaultValues: { codigo_aneel: projeto.codigo_aneel, titulo: projeto.titulo, descricao: projeto.descricao || '', coordenador_id: projeto.coordenador_id, data_inicio: projeto.data_inicio, data_fim: projeto.data_fim },
+    defaultValues: { codigo_aneel: projeto.codigo_aneel, titulo: projeto.titulo, descricao: projeto.descricao || '', coordenador_id: projeto.coordenador_id, data_inicio: toDateString(projeto.data_inicio), data_fim: toDateString(projeto.data_fim) },
     mode: 'onChange',
   });
 
@@ -397,8 +402,8 @@ function EditProjetoModal({ projeto, onClose, onSubmit, isPending, error }: { pr
         <input {...form.register('descricao')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">ID Coordenador (UUID)</label>
-        <input {...form.register('coordenador_id')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+        <label className="block text-sm font-medium text-slate-700 mb-1">Coordenador</label>
+        <SelectInput value={form.watch('coordenador_id')} onValueChange={(v) => form.setValue('coordenador_id', v)} placeholder="Selecione o coordenador..." options={coordOptions} />
         {form.formState.errors.coordenador_id && <p className="text-red-500 text-xs mt-1">{form.formState.errors.coordenador_id.message}</p>}
       </div>
       <div className="grid grid-cols-2 gap-3">

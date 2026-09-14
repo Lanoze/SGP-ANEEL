@@ -340,17 +340,18 @@ router.post('/cancelar-baixa', requireRole(['GESTOR']), async (req, res) => {
       const competencia = competenciaResult.rows[0];
       if (!competencia) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Competência não encontrada ou não está PAGA' }); return; }
 
+      const descricaoEsperada = `Baixa folha - competência ${competencia.mes}/${competencia.ano}`;
       const lancResult = await client.query<{ id: string; valor: number }>(
         `DELETE FROM lancamentos
          WHERE rubrica_projeto_id = $1
-           AND descricao LIKE $2
+           AND descricao = $2
          RETURNING id, valor`,
-        [competencia.rubrica_projeto_id, `Baixa folha - competência ${competencia.mes}/${competencia.ano}`]
+        [competencia.rubrica_projeto_id, descricaoEsperada]
       );
 
       if (lancResult.rows.length === 0) {
         await client.query('ROLLBACK');
-        res.status(404).json({ error: 'Lançamento de baixa não encontrado' });
+        res.status(404).json({ error: 'Lançamento de baixa não encontrado', descricao: descricaoEsperada, rubrica_projeto_id: competencia.rubrica_projeto_id });
         return;
       }
 
@@ -375,7 +376,7 @@ router.post('/cancelar-baixa', requireRole(['GESTOR']), async (req, res) => {
     } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
   } catch (error) {
     console.error('Cancelar baixa error:', error);
-    res.status(500).json({ error: 'Erro interno' });
+    res.status(500).json({ error: 'Erro interno', detail: error instanceof Error ? error.message : String(error) });
   }
 });
 

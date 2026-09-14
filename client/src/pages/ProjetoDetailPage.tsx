@@ -40,6 +40,8 @@ function ProjetoDetalheContent() {
   const [deletingProjeto, setDeletingProjeto] = useState(false);
   const [editingLancamento, setEditingLancamento] = useState<Lancamento | null>(null);
   const [deletingLancamento, setDeletingLancamento] = useState<Lancamento | null>(null);
+  const [editingRubrica, setEditingRubrica] = useState<string | null>(null);
+  const [rubricaValor, setRubricaValor] = useState('');
   const isGestor = user?.perfil === 'GESTOR';
   const canCreateLancamento = user?.perfil === 'GESTOR' || user?.perfil === 'COORDENADOR';
   const canViewRubricas = user?.perfil !== 'BOLSISTA';
@@ -70,6 +72,12 @@ function ProjetoDetalheContent() {
   const updateMutation = useMutation({
     mutationFn: async (data: Partial<createProjetoInput>) => (await api.put(`/projetos/${id}`, data)).data,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['projeto', id] }); queryClient.invalidateQueries({ queryKey: ['projetos'] }); setEditingProjeto(false); },
+  });
+
+  const updateRubricaMutation = useMutation({
+    mutationFn: async ({ rubricaId, valor_previsto }: { rubricaId: string; valor_previsto: number }) => (await api.put(`/projetos/${id}/rubricas/${rubricaId}`, { valor_previsto })).data,
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rubricas', id] }); setEditingRubrica(null); setRubricaValor(''); },
+    onError: (err: unknown) => { const msg = (err && typeof err === 'object' && 'response' in err) ? (err as { response: { data?: { error?: string } } }).response?.data?.error || 'Erro ao atualizar rubrica' : 'Erro ao atualizar rubrica'; alert(msg); },
   });
 
   const deleteMutation = useMutation({
@@ -126,7 +134,20 @@ function ProjetoDetalheContent() {
                         <span>Previsto: R$ {previsto.toLocaleString('pt-BR')}</span>
                         <span>Executado: R$ {executado.toLocaleString('pt-BR')}</span>
                         <span>Saldo: R$ {(previsto - executado).toLocaleString('pt-BR')}</span>
+                        {isGestor && editingRubrica !== r.id && (
+                          <button onClick={(e) => { e.stopPropagation(); setEditingRubrica(r.id); setRubricaValor(String(previsto)); }} className="text-xs text-blue-600 hover:text-blue-800 ml-auto">Editar orçamento</button>
+                        )}
                       </div>
+                      {editingRubrica === r.id && (
+                        <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                          <label className="text-xs text-slate-500">Novo valor:</label>
+                          <input type="number" min="0" step="0.01" value={rubricaValor} onChange={(e) => setRubricaValor(e.target.value)}
+                            className="w-36 px-2 py-1 border border-slate-300 rounded text-sm" autoFocus />
+                          <button onClick={() => { const v = parseFloat(rubricaValor); if (!isNaN(v) && v >= 0) updateRubricaMutation.mutate({ rubricaId: r.id, valor_previsto: v }); }}
+                            disabled={updateRubricaMutation.isPending} className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50">Salvar</button>
+                          <button onClick={() => setEditingRubrica(null)} className="px-2 py-1 text-xs text-slate-500 hover:bg-slate-100 rounded">Cancelar</button>
+                        </div>
+                      )}
                       <div className="w-full bg-slate-200 rounded-full h-2 mt-2"><div className={`${cor} h-2 rounded-full`} style={{ width: `${Math.min(pct, 100)}%` }} /></div>
                     </div>
                     {isSelected && canViewRubricas && (

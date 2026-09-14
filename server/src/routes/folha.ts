@@ -106,6 +106,14 @@ router.post('/alocacao/:projeto_id', requireRole(['GESTOR', 'COORDENADOR']), asy
     }
     const { projeto_id, usuario_id, papel_projeto, nivel_academico, valor_nominal_capes, nivel_complemento } = parsed.data;
 
+    if (papel_projeto === 'COORDENADOR') {
+      const projeto = await queryOne<{ coordenador_id: string }>('SELECT coordenador_id FROM projetos WHERE id = $1', [projeto_id]);
+      if (!projeto || projeto.coordenador_id !== usuario_id) {
+        res.status(400).json({ error: 'O coordenador alocado deve ser o coordenador definido no projeto' });
+        return;
+      }
+    }
+
     const existing = await queryOne('SELECT id FROM alocacao_rh WHERE projeto_id = $1 AND usuario_id = $2', [projeto_id, usuario_id]);
     if (existing) { res.status(409).json({ error: 'Usuário já alocado neste projeto' }); return; }
 

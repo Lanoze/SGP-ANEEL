@@ -35,12 +35,13 @@ interface SelectInputProps {
   onValueChange: (v: string) => void;
   placeholder?: string;
   options: { value: string; label: string }[];
+  disabled?: boolean;
 }
 
 export const SelectInput = forwardRef<HTMLButtonElement, SelectInputProps>(
-  ({ value, onValueChange, placeholder, options }, ref) => (
-    <Select.Root value={value} onValueChange={onValueChange}>
-      <Select.Trigger ref={ref} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm flex items-center justify-between bg-white">
+  ({ value, onValueChange, placeholder, options, disabled }, ref) => (
+    <Select.Root value={value} onValueChange={onValueChange} disabled={disabled}>
+      <Select.Trigger ref={ref} className={`w-full px-3 py-2 border border-slate-300 rounded-lg text-sm flex items-center justify-between bg-white ${disabled ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}>
         <Select.Value placeholder={placeholder || 'Selecione...'} />
         <Select.Icon className="text-slate-400">▾</Select.Icon>
       </Select.Trigger>

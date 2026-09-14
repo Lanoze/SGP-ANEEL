@@ -242,7 +242,7 @@ function FolhaContent() {
       )}
 
       {showAlocacao && (
-        <AlocacaoModal projetoId={projeto_id!} usuarios={usuarios} alocados={folha?.map((a) => a.usuario_id) || []} onClose={() => setShowAlocacao(false)}
+        <AlocacaoModal projetoId={projeto_id!} coordenadorId={projeto?.coordenador_id} usuarios={usuarios} alocados={folha?.map((a) => a.usuario_id) || []} onClose={() => setShowAlocacao(false)}
           onSubmit={(data) => alocacaoMutation.mutate(data)} isPending={alocacaoMutation.isPending} />
       )}
 
@@ -284,6 +284,7 @@ function FolhaContent() {
 const PAPEL_OPTIONS = [
   { value: 'PESQUISADOR', label: 'Pesquisador' },
   { value: 'BOLSISTA', label: 'Bolsista' },
+  { value: 'COORDENADOR', label: 'Coordenador' },
 ];
 const NIVEL_OPTIONS = [
   { value: '0', label: 'Nível 0 (0%)' },
@@ -292,8 +293,8 @@ const NIVEL_OPTIONS = [
   { value: '3', label: 'Nível 3 (Dobro)' },
 ];
 
-function AlocacaoModal({ projetoId, usuarios, alocados, onClose, onSubmit, isPending }: {
-  projetoId: string; usuarios: Usuario[] | undefined; alocados: string[]; onClose: () => void;
+function AlocacaoModal({ projetoId, coordenadorId, usuarios, alocados, onClose, onSubmit, isPending }: {
+  projetoId: string; coordenadorId: string | undefined; usuarios: Usuario[] | undefined; alocados: string[]; onClose: () => void;
   onSubmit: (data: createAlocacaoInput) => void; isPending: boolean;
 }) {
   const form = useForm<createAlocacaoInput>({
@@ -302,7 +303,21 @@ function AlocacaoModal({ projetoId, usuarios, alocados, onClose, onSubmit, isPen
     mode: 'onChange',
   });
 
-  const usuarioOptions = usuarios?.filter((u) => !alocados.includes(u.id)).map((u) => ({ value: u.id, label: `${u.nome_completo} (${u.perfil})` })) || [];
+  const papelValue = form.watch('papel_projeto');
+  const isCoordenador = papelValue === 'COORDENADOR';
+  const usuarioDisabled = isCoordenador;
+
+  useEffect(() => {
+    if (isCoordenador && coordenadorId) {
+      form.setValue('usuario_id', coordenadorId, { shouldValidate: true });
+    } else if (!isCoordenador) {
+      form.setValue('usuario_id', '', { shouldValidate: true });
+    }
+  }, [isCoordenador, coordenadorId]);
+
+  const usuarioOptions = isCoordenador
+    ? (usuarios?.filter((u) => u.id === coordenadorId).map((u) => ({ value: u.id, label: `${u.nome_completo} (${u.perfil})` })) || [])
+    : (usuarios?.filter((u) => !alocados.includes(u.id)).map((u) => ({ value: u.id, label: `${u.nome_completo} (${u.perfil})` })) || []);
   const nivelAcademicoOptions = Object.keys(NOMINAL_VALUES).map((k) => ({ value: k, label: k }));
 
   return (
@@ -318,7 +333,7 @@ function AlocacaoModal({ projetoId, usuarios, alocados, onClose, onSubmit, isPen
       }>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Usuário</label>
-        <SelectInput value={form.watch('usuario_id')} onValueChange={(v) => form.setValue('usuario_id', v)} placeholder="Selecione..." options={usuarioOptions} />
+        <SelectInput value={form.watch('usuario_id')} onValueChange={(v) => form.setValue('usuario_id', v)} placeholder="Selecione..." options={usuarioOptions} disabled={usuarioDisabled} />
         {form.formState.errors.usuario_id && <p className="text-red-500 text-xs mt-1">{form.formState.errors.usuario_id.message}</p>}
       </div>
       <div>
@@ -328,7 +343,7 @@ function AlocacaoModal({ projetoId, usuarios, alocados, onClose, onSubmit, isPen
       </div>
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Papel no Projeto</label>
-        <SelectInput value={form.watch('papel_projeto')} onValueChange={(v) => form.setValue('papel_projeto', v as 'PESQUISADOR' | 'BOLSISTA')} options={PAPEL_OPTIONS} />
+        <SelectInput value={form.watch('papel_projeto')} onValueChange={(v) => form.setValue('papel_projeto', v as 'PESQUISADOR' | 'BOLSISTA' | 'COORDENADOR')} options={PAPEL_OPTIONS} />
         {form.formState.errors.papel_projeto && <p className="text-red-500 text-xs mt-1">{form.formState.errors.papel_projeto.message}</p>}
       </div>
       <div>

@@ -204,7 +204,7 @@ router.post('/baixar-individual', requireRole(['GESTOR']), async (req, res) => {
       await client.query(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, CURRENT_DATE, $4)`,
-        [competencia.rubrica_projeto_id, `Baixa folha - competência ${competencia.mes}/${competencia.ano}`, valorDevido, user.userId]
+        [competencia.rubrica_projeto_id, `Baixa folha - competência ${competencia.mes}/${competencia.ano} [${competencia_id}]`, valorDevido, user.userId]
       );
 
       await client.query(
@@ -340,20 +340,17 @@ router.post('/cancelar-baixa', requireRole(['GESTOR']), async (req, res) => {
       const competencia = competenciaResult.rows[0];
       if (!competencia) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Competência não encontrada ou não está PAGA' }); return; }
 
-      const descricaoEsperada = `Baixa folha - competência ${competencia.mes}/${competencia.ano}`;
+      const valorDevido = parseFloat(String(competencia.valor_devido));
+      const descricaoEsperada = `Baixa folha - competência ${competencia.mes}/${competencia.ano} [${competencia_id}]`;
+      const descricaoLegada = `Baixa folha - competência ${competencia.mes}/${competencia.ano}`;
       const lancResult = await client.query<{ id: string; valor: number }>(
         `DELETE FROM lancamentos
          WHERE rubrica_projeto_id = $1
-           AND descricao = $2
+           AND (descricao = $2 OR descricao = $3)
+           AND valor = $4
          RETURNING id, valor`,
-        [competencia.rubrica_projeto_id, descricaoEsperada]
+        [competencia.rubrica_projeto_id, descricaoEsperada, descricaoLegada, valorDevido]
       );
-
-      if (lancResult.rows.length === 0) {
-        await client.query('ROLLBACK');
-        res.status(404).json({ error: 'Lançamento de baixa não encontrado', descricao: descricaoEsperada, rubrica_projeto_id: competencia.rubrica_projeto_id });
-        return;
-      }
 
       await client.query(
         `UPDATE competencias_folha SET status = 'PENDENTE', data_baixa = NULL, usuario_baixa_id = NULL WHERE id = $1`,

@@ -309,9 +309,11 @@ function AlocacaoModal({ projetoId, coordenadorId, usuarios, alocados, onClose, 
 
   useEffect(() => {
     if (isCoordenador && coordenadorId) {
-      form.setValue('usuario_id', coordenadorId, { shouldValidate: true });
+      form.setValue('usuario_id', coordenadorId);
+      form.clearErrors('usuario_id');
     } else if (!isCoordenador) {
-      form.setValue('usuario_id', '', { shouldValidate: true });
+      form.setValue('usuario_id', '');
+      form.clearErrors('usuario_id');
     }
   }, [isCoordenador, coordenadorId]);
 

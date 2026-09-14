@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
@@ -136,8 +136,8 @@ function AuditoriaContent() {
               const isExpanded = expandedId === log.id;
               const hasDetails = log.estado_anterior || log.estado_posterior;
               return (
-                <>
-                  <tr key={log.id} className={`hover:bg-slate-50 ${hasDetails ? 'cursor-pointer' : ''}`} onClick={() => hasDetails && setExpandedId(isExpanded ? null : log.id)}>
+                <Fragment key={log.id}>
+                  <tr className={`hover:bg-slate-50 ${hasDetails ? 'cursor-pointer' : ''}`} onClick={() => hasDetails && setExpandedId(isExpanded ? null : log.id)}>
                     <td className="px-4 py-3 text-slate-400 text-xs">{hasDetails ? (isExpanded ? '▾' : '▸') : ''}</td>
                     <td className="px-4 py-3 text-slate-500">{new Date(log.criado_em).toLocaleString('pt-BR')}</td>
                     <td className="px-4 py-3">{log.usuario_nome || 'Sistema'}</td>
@@ -174,7 +174,7 @@ function AuditoriaContent() {
                       </td>
                     </tr>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </tbody>

@@ -11,6 +11,9 @@ router.get('/', requireRole(['GESTOR']), async (req, res) => {
     const usuario_id = req.query.usuario_id as string | undefined;
     const data_inicio = req.query.data_inicio as string | undefined;
     const data_fim = req.query.data_fim as string | undefined;
+    const page = Math.max(1, parseInt(String(req.query.page)) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit)) || 50));
+    const offset = (page - 1) * limit;
 
     let where = '1=1';
     const sqlParams: unknown[] = [];
@@ -22,13 +25,19 @@ router.get('/', requireRole(['GESTOR']), async (req, res) => {
     if (data_inicio) { where += ` AND al.criado_em >= $${paramIdx++}`; sqlParams.push(data_inicio); }
     if (data_fim) { where += ` AND al.criado_em <= $${paramIdx}::date + interval '1 day'`; sqlParams.push(data_fim); paramIdx++; }
 
+    const countResult = await query<{ total: string }>(
+      `SELECT COUNT(*) as total FROM audit_logs al WHERE ${where}`,
+      sqlParams
+    );
+    const total = parseInt(countResult[0]?.total || '0');
+
     const logs = await query(
       `SELECT al.*, u.nome_completo as usuario_nome
        FROM audit_logs al LEFT JOIN usuarios u ON al.usuario_id = u.id
-       WHERE ${where} ORDER BY al.criado_em DESC LIMIT 500`,
-      sqlParams
+       WHERE ${where} ORDER BY al.criado_em DESC LIMIT $${paramIdx++} OFFSET $${paramIdx}`,
+      [...sqlParams, limit, offset]
     );
-    res.json(logs);
+    res.json({ data: logs, total, page, limit });
   } catch (error) {
     console.error('Get audit logs error:', error);
     res.status(500).json({ error: 'Erro interno' });

@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { query, queryOne, pool, setAuditContext } from '../lib/db';
-import { createAuditLog } from '../lib/audit';
 import { requireAuth, requireRole } from '../lib/rbac';
 import { createLancamentoSchema } from '../lib/schemas';
 import type { Lancamento } from '../lib/types';
@@ -50,8 +49,6 @@ router.post('/', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
       );
       const lancamento = lancResult.rows[0];
       await client.query('COMMIT');
-      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-      await createAuditLog({ usuario_id: user.userId, acao: 'CREATE', tabela_origem: 'lancamentos', registro_id: lancamento.id, estado_posterior: { rubrica_projeto_id, descricao, valor, data_despesa }, endereco_ip: String(ip) });
       res.status(201).json(lancamento);
     } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
   } catch (error) {
@@ -141,8 +138,6 @@ router.put('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
         [...values, id]
       );
       await client.query('COMMIT');
-      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-      await createAuditLog({ usuario_id: user.userId, acao: 'UPDATE', tabela_origem: 'lancamentos', registro_id: id, estado_anterior: { descricao: existing.descricao, valor: existing.valor, data_despesa: existing.data_despesa }, estado_posterior: fields, endereco_ip: String(ip) });
       res.json(updatedResult.rows[0]);
     } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
   } catch (error) {
@@ -164,8 +159,6 @@ router.delete('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) =
       if (!existing) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Lançamento não encontrado' }); return; }
       await client.query(`DELETE FROM lancamentos WHERE id = $1`, [id]);
       await client.query('COMMIT');
-      const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-      await createAuditLog({ usuario_id: user.userId, acao: 'DELETE', tabela_origem: 'lancamentos', registro_id: id, estado_anterior: { descricao: existing.descricao, valor: existing.valor, data_despesa: existing.data_despesa, rubrica_projeto_id: existing.rubrica_projeto_id }, endereco_ip: String(ip) });
       res.json({ success: true });
     } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
   } catch (error) {

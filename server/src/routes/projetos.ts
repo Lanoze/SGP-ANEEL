@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import { query, queryOne, pool, setAuditContext } from '../lib/db';
-import { createAuditLog } from '../lib/audit';
 import { requireAuth, requireRole } from '../lib/rbac';
 import { createProjetoSchema } from '../lib/schemas';
 import type { Projeto } from '../lib/types';
@@ -63,8 +62,6 @@ router.post('/', requireRole(['GESTOR']), async (req, res) => {
         [result!.id, code]
       );
     }
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    await createAuditLog({ usuario_id: user.userId, acao: 'CREATE', tabela_origem: 'projetos', registro_id: result!.id, estado_posterior: { codigo_aneel, titulo }, endereco_ip: String(ip) });
     res.status(201).json({ id: result!.id, codigo_aneel, titulo });
   } catch (error) {
     console.error('Create projeto error:', error);
@@ -157,8 +154,6 @@ router.put('/:id', requireRole(['GESTOR']), async (req, res) => {
       }
     }
 
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    await createAuditLog({ usuario_id: user.userId, acao: 'UPDATE', tabela_origem: 'projetos', registro_id: req.params.id, estado_anterior: { titulo: existing.titulo }, estado_posterior: fields, endereco_ip: String(ip) });
     res.json({ message: 'Projeto atualizado' });
   } catch (error) {
     console.error('Update projeto error:', error);
@@ -175,8 +170,6 @@ router.delete('/:id', requireRole(['GESTOR']), async (req, res) => {
       return;
     }
     await query('DELETE FROM projetos WHERE id = $1', [req.params.id]);
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-    await createAuditLog({ usuario_id: user.userId, acao: 'DELETE', tabela_origem: 'projetos', registro_id: req.params.id, estado_anterior: { codigo_aneel: existing.codigo_aneel, titulo: existing.titulo }, endereco_ip: String(ip) });
     res.json({ message: 'Projeto excluído' });
   } catch (error) {
     console.error('Delete projeto error:', error);

@@ -82,7 +82,7 @@ const PROJECT_TITLES = [
   'Estudo de Micro Redes para Áreas Remotas',
   'Controle Inteligente de Iluminação Pública LED',
   'Desenvolvimento de Condutor de Alta Temperatura',
-  'Análise de谐波 na Rede de Distribuição',
+  'Análise de Harmônicos na Rede de Distribuição',
   'Sistema de Gestão de Demanda em Tempo Real',
   'Monitoramento Acústico de Transformadores',
   'Desenvolvimento de isolante nanoestruturado',

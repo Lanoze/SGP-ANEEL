@@ -163,6 +163,16 @@ interface EditUsuarioInput {
 }
 
 function EditUsuarioModal({ usuario, onClose, onSubmit, isPending, error }: { usuario: Usuario; onClose: () => void; onSubmit: (d: EditUsuarioInput) => void; isPending: boolean; error?: string }) {
+  const [novaSenha, setNovaSenha] = useState('');
+  const [senhaMsg, setSenhaMsg] = useState('');
+  const [senhaErr, setSenhaErr] = useState('');
+
+  const resetMutation = useMutation({
+    mutationFn: async (senha: string) => (await api.post('/auth/reset-password', { usuario_id: usuario.id, nova_senha: senha })).data,
+    onSuccess: (data) => { setSenhaMsg(data.message); setSenhaErr(''); setNovaSenha(''); },
+    onError: (e: Error) => { setSenhaErr(e.message); setSenhaMsg(''); },
+  });
+
   const form = useForm<EditUsuarioInput>({
     defaultValues: { nome_completo: usuario.nome_completo, email: usuario.email, perfil: usuario.perfil, ativo: usuario.ativo },
     mode: 'onChange',
@@ -199,6 +209,22 @@ function EditUsuarioModal({ usuario, onClose, onSubmit, isPending, error }: { us
       <div className="flex items-center gap-2">
         <input type="checkbox" id="ativo" {...form.register('ativo')} className="rounded border-slate-300" />
         <label htmlFor="ativo" className="text-sm font-medium text-slate-700">Ativo</label>
+      </div>
+      <div className="border-t border-slate-200 mt-4 pt-4">
+        <h4 className="text-sm font-semibold text-slate-700 mb-2">Redefinir Senha</h4>
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Nova Senha</label>
+            <input type="password" value={novaSenha} onChange={(e) => { setNovaSenha(e.target.value); setSenhaMsg(''); setSenhaErr(''); }}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+          </div>
+          <button onClick={() => resetMutation.mutate(novaSenha)} disabled={!novaSenha || resetMutation.isPending}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50">
+            {resetMutation.isPending ? 'Redefinindo...' : 'Redefinir'}
+          </button>
+        </div>
+        {senhaMsg && <p className="text-green-600 text-sm mt-2">{senhaMsg}</p>}
+        {senhaErr && <p className="text-red-500 text-sm mt-2">{senhaErr}</p>}
       </div>
       {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
     </Modal>

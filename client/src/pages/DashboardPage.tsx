@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import Breadcrumbs from '../components/Breadcrumbs';
-import type { Projeto, RubricaProjeto, Usuario } from '../types';
+import type { Projeto, RubricaProjeto } from '../types';
 
 const RUBRICA_LABELS: Record<string, string> = {
   RH: 'Recursos Humanos', ST: 'Serviços de Terceiros', MC: 'Materiais de Consumo',
@@ -93,49 +93,6 @@ function DashboardContent() {
         </div>
       ))}
 
-      {user?.perfil === 'GESTOR' && <ResetPasswordSection />}
-    </div>
-  );
-}
-
-function ResetPasswordSection() {
-  const [usuarioId, setUsuarioId] = useState('');
-  const [novaSenha, setNovaSenha] = useState('');
-  const [msg, setMsg] = useState('');
-  const [err, setErr] = useState('');
-
-  const { data: usuarios } = useQuery<Usuario[]>({ queryKey: ['usuarios'], queryFn: async () => (await api.get('/usuarios')).data });
-
-  const mutation = useMutation({
-    mutationFn: async () => (await api.post('/auth/reset-password', { usuario_id: usuarioId, nova_senha: novaSenha })).data,
-    onSuccess: (data) => { setMsg(data.message); setErr(''); setUsuarioId(''); setNovaSenha(''); },
-    onError: (e: Error) => { setErr(e.message); setMsg(''); },
-  });
-
-  return (
-    <div className="bg-white rounded-xl shadow p-6 mt-6">
-      <h2 className="text-lg font-semibold mb-4">Redefinir Senha de Usuário</h2>
-      <div className="flex gap-3 items-end flex-wrap">
-        <div className="flex-1 min-w-[200px]">
-          <label className="block text-sm font-medium text-slate-700 mb-1">Usuário</label>
-          <select value={usuarioId} onChange={(e) => setUsuarioId(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm">
-            <option value="">Selecione...</option>
-            {usuarios?.map((u) => <option key={u.id} value={u.id}>{u.nome_completo} ({u.email})</option>)}
-          </select>
-        </div>
-        <div className="flex-1 min-w-[200px]">
-          <label className="block text-sm font-medium text-slate-700 mb-1">Nova Senha</label>
-          <input type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
-        </div>
-        <button onClick={() => mutation.mutate()} disabled={!usuarioId || !novaSenha || mutation.isPending}
-          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 disabled:opacity-50">
-          {mutation.isPending ? 'Redefinindo...' : 'Redefinir'}
-        </button>
-      </div>
-      {msg && <p className="text-green-600 text-sm mt-2">{msg}</p>}
-      {err && <p className="text-red-500 text-sm mt-2">{err}</p>}
     </div>
   );
 }

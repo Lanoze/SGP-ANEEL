@@ -26,9 +26,11 @@ export async function queryOne<T = Record<string, unknown>>(text: string, params
   return rows[0] ?? null;
 }
 
-export async function setAuditContext(client: PoolClient, usuarioId: string | null): Promise<void> {
+export async function setAuditContext(client: PoolClient, usuarioId: string | null, ip?: string): Promise<void> {
   const safeId = (usuarioId || '').replace(/'/g, "''");
+  const safeIp = (ip || '').replace(/'/g, "''");
   await client.query(`SET LOCAL app.current_user_id = '${safeId}'`);
+  await client.query(`SET LOCAL app.current_ip = '${safeIp}'`);
 }
 
 export { pool };

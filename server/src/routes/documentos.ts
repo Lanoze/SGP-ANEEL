@@ -184,9 +184,10 @@ router.post('/:projeto_id/upload', requireAuth, async (req, res) => {
       const mimeType = detectarMimeType(buffer, arquivoExt);
 
       const client = await pool.connect();
+      const ipUp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
       try {
         await client.query('BEGIN');
-        await setAuditContext(client, usuario_id);
+        await setAuditContext(client, usuario_id, ipUp);
 
         const metaResult = await client.query(
           `INSERT INTO documentos_metadados (projeto_id, categoria, nome_arquivo, extensao, mime_type, tamanho_bytes, hash_sha256, usuario_upload_id)
@@ -295,9 +296,10 @@ router.post('/upload-stream', requireAuth, async (req, res) => {
     }
 
     const client = await pool.connect();
+    const ipDoc = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
     try {
       await client.query('BEGIN');
-      await setAuditContext(client, user.userId);
+      await setAuditContext(client, user.userId, ipDoc);
 
       const metaResult = await client.query(
         `INSERT INTO documentos_metadados (projeto_id, categoria, nome_arquivo, extensao, mime_type, tamanho_bytes, hash_sha256, usuario_upload_id)
@@ -383,9 +385,10 @@ router.delete('/:id', requireAuth, async (req, res) => {
     if (!meta) { res.status(404).json({ error: 'Documento não encontrado' }); return; }
 
     const client = await pool.connect();
+    const ipDel = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
     try {
       await client.query('BEGIN');
-      await setAuditContext(client, user.userId);
+      await setAuditContext(client, user.userId, ipDel);
 
       await client.query('DELETE FROM documentos_payload WHERE documento_id = $1', [req.params.id]);
       await client.query('DELETE FROM documentos_metadados WHERE id = $1', [req.params.id]);

@@ -175,9 +175,10 @@ router.post('/baixar-individual', requireRole(['GESTOR']), async (req, res) => {
     const { competencia_id } = parsed.data;
 
     const client = await pool.connect();
+    const enderecoIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
     try {
       await client.query('BEGIN');
-      await setAuditContext(client, user.userId);
+      await setAuditContext(client, user.userId, enderecoIp);
 
       const competenciaResult = await client.query<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number; projeto_coordenador_id: string; nome_colaborador: string }>(
         `SELECT cf.*, rp.id as rubrica_projeto_id, p.coordenador_id as projeto_coordenador_id, u.nome_completo as nome_colaborador
@@ -253,9 +254,10 @@ router.post('/baixar-lote', requireRole(['GESTOR']), async (req, res) => {
     const { projeto_id, ano, mes } = parsed.data;
 
     const client = await pool.connect();
+    const enderecoIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
     try {
       await client.query('BEGIN');
-      await setAuditContext(client, user.userId);
+      await setAuditContext(client, user.userId, enderecoIp);
 
       const competenciasResult = await client.query<{ id: string; valor_devido: number; rubrica_projeto_id: string }>(
         `SELECT cf.*, rp.id as rubrica_projeto_id
@@ -334,9 +336,10 @@ router.post('/cancelar-baixa', requireRole(['GESTOR']), async (req, res) => {
     const { competencia_id } = parsed.data;
 
     const client = await pool.connect();
+    const enderecoIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
     try {
       await client.query('BEGIN');
-      await setAuditContext(client, user.userId);
+      await setAuditContext(client, user.userId, enderecoIp);
 
       const competenciaResult = await client.query<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number; alocacao_rh_id: string; nome_colaborador: string }>(
         `SELECT cf.*, rp.id as rubrica_projeto_id, u.nome_completo as nome_colaborador

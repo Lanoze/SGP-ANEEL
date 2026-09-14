@@ -25,9 +25,10 @@ router.post('/', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
     }
 
     const client = await pool.connect();
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
     try {
       await client.query('BEGIN');
-      await setAuditContext(client, user.userId);
+      await setAuditContext(client, user.userId, ip);
       const locked = await client.query<{ valor_previsto: number }>(
         `SELECT valor_previsto FROM rubricas_projeto WHERE id = $1 FOR UPDATE`,
         [rubrica_projeto_id]
@@ -108,9 +109,10 @@ router.put('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) => {
     const keys = Object.keys(fields);
     if (keys.length === 0) { res.status(400).json({ error: 'Nenhum campo para atualizar' }); return; }
     const client = await pool.connect();
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
     try {
       await client.query('BEGIN');
-      await setAuditContext(client, user.userId);
+      await setAuditContext(client, user.userId, ip);
       const existingResult = await client.query<Lancamento>(`SELECT * FROM lancamentos WHERE id = $1 FOR UPDATE`, [id]);
       const existing = existingResult.rows[0];
       if (!existing) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Lançamento não encontrado' }); return; }
@@ -151,9 +153,10 @@ router.delete('/:id', requireRole(['GESTOR', 'COORDENADOR']), async (req, res) =
     const user = req.user!;
     const { id } = req.params;
     const client = await pool.connect();
+    const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown');
     try {
       await client.query('BEGIN');
-      await setAuditContext(client, user.userId);
+      await setAuditContext(client, user.userId, ip);
       const existingResult = await client.query<Lancamento>(`SELECT * FROM lancamentos WHERE id = $1 FOR UPDATE`, [id]);
       const existing = existingResult.rows[0];
       if (!existing) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Lançamento não encontrado' }); return; }

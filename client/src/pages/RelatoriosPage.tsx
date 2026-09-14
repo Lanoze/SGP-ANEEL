@@ -50,6 +50,11 @@ function RelatoriosContent() {
   const [filtroStatus, setFiltroStatus] = useState('');
   const [filtroMes, setFiltroMes] = useState('');
   const [filtroAno, setFiltroAno] = useState('');
+  const [filtroPendProjeto, setFiltroPendProjeto] = useState('');
+  const [filtroPendColaborador, setFiltroPendColaborador] = useState('');
+  const [filtroPendNivel, setFiltroPendNivel] = useState('');
+  const [filtroPendMes, setFiltroPendMes] = useState('');
+  const [filtroPendAno, setFiltroPendAno] = useState('');
 
   const { data: rubricasDados, isLoading: loadingRubricas } = useQuery<RubricaRel[]>({
     queryKey: ['rel-rubricas'],
@@ -85,12 +90,6 @@ function RelatoriosContent() {
   });
 
   const isLoading = loadingRubricas || loadingFolha || loadingPend || loadingInst;
-
-  const [filtroPendProjeto, setFiltroPendProjeto] = useState('');
-  const [filtroPendColaborador, setFiltroPendColaborador] = useState('');
-  const [filtroPendNivel, setFiltroPendNivel] = useState('');
-  const [filtroPendMes, setFiltroPendMes] = useState('');
-  const [filtroPendAno, setFiltroPendAno] = useState('');
 
   const niveisUnicos = [...new Set(folhaDados?.map((f) => f.nivel_academico) || [])];
   const mesesUnicos = [...new Set(folhaDados?.map((f) => f.mes) || [])].sort((a, b) => a - b);

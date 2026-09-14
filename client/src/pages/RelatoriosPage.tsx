@@ -75,11 +75,32 @@ function RelatoriosContent() {
     enabled: aba === 'folha_instituicao',
   });
 
+  const pendFiltrada = pendDados?.filter((p) => {
+    if (filtroPendProjeto && p.codigo_aneel !== filtroPendProjeto) return false;
+    if (filtroPendColaborador && p.nome_completo !== filtroPendColaborador) return false;
+    if (filtroPendNivel && p.nivel_academico !== filtroPendNivel) return false;
+    if (filtroPendMes && p.mes !== parseInt(filtroPendMes)) return false;
+    if (filtroPendAno && p.ano !== parseInt(filtroPendAno)) return false;
+    return true;
+  });
+
   const isLoading = loadingRubricas || loadingFolha || loadingPend || loadingInst;
+
+  const [filtroPendProjeto, setFiltroPendProjeto] = useState('');
+  const [filtroPendColaborador, setFiltroPendColaborador] = useState('');
+  const [filtroPendNivel, setFiltroPendNivel] = useState('');
+  const [filtroPendMes, setFiltroPendMes] = useState('');
+  const [filtroPendAno, setFiltroPendAno] = useState('');
 
   const niveisUnicos = [...new Set(folhaDados?.map((f) => f.nivel_academico) || [])];
   const mesesUnicos = [...new Set(folhaDados?.map((f) => f.mes) || [])].sort((a, b) => a - b);
   const anosUnicos = [...new Set(folhaDados?.map((f) => f.ano) || [])].sort((a, b) => a - b);
+
+  const projetosUnicosPend = [...new Set(pendDados?.map((p) => p.codigo_aneel) || [])];
+  const colaboradoresUnicosPend = [...new Set(pendDados?.map((p) => p.nome_completo) || [])];
+  const niveisUnicosPend = [...new Set(pendDados?.map((p) => p.nivel_academico) || [])];
+  const mesesUnicosPend = [...new Set(pendDados?.map((p) => p.mes) || [])].sort((a, b) => a - b);
+  const anosUnicosPend = [...new Set(pendDados?.map((p) => p.ano) || [])].sort((a, b) => a - b);
 
   const folhaFiltrada = folhaDados?.filter((f) => {
     if (filtroPerfil && f.perfil !== filtroPerfil) return false;
@@ -266,9 +287,61 @@ function RelatoriosContent() {
 
       {aba === 'pendencias' && !isLoading && (
         <div className="bg-white rounded-xl shadow overflow-hidden">
-          <div className="px-6 py-4 bg-amber-50 border-b">
-            <p className="text-sm text-amber-800">Total de pendências: <strong>{pendDados?.length ?? 0}</strong> competências</p>
-            <p className="text-sm text-amber-800">Valor total pendente: <strong>R$ {pendDados?.reduce((s, p) => s + parseFloat(p.valor_devido), 0).toLocaleString('pt-BR') ?? '0'}</strong></p>
+          <div className="px-4 py-3 bg-slate-50 border-b flex flex-wrap gap-3 no-print">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Projeto</label>
+              <select value={filtroPendProjeto} onChange={(e) => setFiltroPendProjeto(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                <option value="">Todos</option>
+                {projetosUnicosPend.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Colaborador</label>
+              <select value={filtroPendColaborador} onChange={(e) => setFiltroPendColaborador(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                <option value="">Todos</option>
+                {colaboradoresUnicosPend.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Nível</label>
+              <select value={filtroPendNivel} onChange={(e) => setFiltroPendNivel(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                <option value="">Todos</option>
+                {niveisUnicosPend.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Mês</label>
+              <select value={filtroPendMes} onChange={(e) => setFiltroPendMes(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                <option value="">Todos</option>
+                {mesesUnicosPend.map((m) => <option key={m} value={m}>{MESES[m - 1]}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Ano</label>
+              <select value={filtroPendAno} onChange={(e) => setFiltroPendAno(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                <option value="">Todos</option>
+                {anosUnicosPend.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+            {(filtroPendProjeto || filtroPendColaborador || filtroPendNivel || filtroPendMes || filtroPendAno) && (
+              <div className="flex items-end">
+                <button onClick={() => { setFiltroPendProjeto(''); setFiltroPendColaborador(''); setFiltroPendNivel(''); setFiltroPendMes(''); setFiltroPendAno(''); }}
+                  className="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg text-sm border border-red-200">Limpar Filtros</button>
+              </div>
+            )}
+          </div>
+          <div className="px-4 py-2 bg-amber-50 border-b">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm text-amber-800">Total de pendências: <strong>{pendFiltrada?.length ?? 0}</strong> competências</p>
+                <p className="text-sm text-amber-800">Valor total pendente: <strong>R$ {pendFiltrada?.reduce((s, p) => s + parseFloat(p.valor_devido), 0).toLocaleString('pt-BR') ?? '0'}</strong></p>
+              </div>
+              {(filtroPendProjeto || filtroPendColaborador || filtroPendNivel || filtroPendMes || filtroPendAno) && (
+                <div className="text-xs text-amber-600">
+                  Filtrado de {pendDados?.length ?? 0} registros
+                </div>
+              )}
+            </div>
           </div>
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b"><tr>
@@ -279,8 +352,8 @@ function RelatoriosContent() {
               <th className="text-right px-4 py-3 font-medium text-slate-600">Valor Devido</th>
             </tr></thead>
             <tbody className="divide-y">
-              {pendDados?.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Nenhuma pendência encontrada</td></tr>}
-              {pendDados?.map((p, i) => (
+              {pendFiltrada?.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-slate-400">Nenhuma pendência encontrada</td></tr>}
+              {pendFiltrada?.map((p, i) => (
                 <tr key={i} className="hover:bg-slate-50">
                   <td className="px-4 py-3 text-xs">{p.codigo_aneel}</td>
                   <td className="px-4 py-3 font-medium">{p.nome_completo}</td>

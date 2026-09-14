@@ -170,14 +170,7 @@ router.delete('/:id', requireRole(['GESTOR']), async (req, res) => {
     const projetoId = req.params.id;
     await client.query('BEGIN');
 
-    // Delete competencias_folha via alocacao_rh
-    await client.query('DELETE FROM competencias_folha WHERE alocacao_rh_id IN (SELECT id FROM alocacao_rh WHERE projeto_id = $1)', [projetoId]);
-    await client.query('DELETE FROM alocacao_rh WHERE projeto_id = $1', [projetoId]);
-    await client.query('DELETE FROM upload_chunks');
-    await client.query('DELETE FROM documentos_payload WHERE documento_metadados_id IN (SELECT id FROM documentos_metadados WHERE projeto_id = $1)', [projetoId]);
-    await client.query('DELETE FROM documentos_metadados WHERE projeto_id = $1', [projetoId]);
     await client.query('DELETE FROM lancamentos WHERE rubrica_projeto_id IN (SELECT id FROM rubricas_projeto WHERE projeto_id = $1)', [projetoId]);
-    await client.query('DELETE FROM rubricas_projeto WHERE projeto_id = $1', [projetoId]);
     await client.query('DELETE FROM projetos WHERE id = $1', [projetoId]);
 
     await client.query('COMMIT');

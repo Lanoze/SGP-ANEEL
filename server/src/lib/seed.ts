@@ -225,14 +225,22 @@ async function seed() {
         }
       }
 
-      const rubricaEntries = Object.entries(rubricaIds);
+      const rubricaKeys = Object.keys(rubricaIds);
       const numLancamentos = randInt(5, 15);
+      const gastoRubrica: Record<string, number> = {};
+      for (const key of rubricaKeys) gastoRubrica[key] = 0;
+      const limiteRubrica: Record<string, number> = {};
+      for (const key of rubricaKeys) limiteRubrica[key] = rubricaValues[key] * (0.3 + Math.random() * 0.4);
 
       for (let j = 0; j < numLancamentos; j++) {
-        const [, rid] = pick(rubricaEntries);
-        const rubricaKey = rubricaEntries.find(([, v]) => v === rid)?.[0] || 'OU';
+        const available = rubricaKeys.filter((key) => gastoRubrica[key] < limiteRubrica[key]);
+        if (available.length === 0) break;
+        const rubricaKey = pick(available);
+        const rid = rubricaIds[rubricaKey];
         const desc = pick(LANCAMENTO_DESC[rubricaKey]);
-        const valorLanc = Math.round((Math.random() * 50000 + 1000) * 100) / 100;
+        const restante = limiteRubrica[rubricaKey] - gastoRubrica[rubricaKey];
+        const valorLanc = Math.round(Math.max(1000, Math.min(restante, rubricaValues[rubricaKey] * 0.15)) * 100) / 100;
+        gastoRubrica[rubricaKey] += valorLanc;
         const usuario = pick(colaboraveis);
         const dataDespesa = randomDate(new Date(dataInicio), new Date(dataFim));
 

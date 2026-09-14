@@ -356,8 +356,8 @@ router.post('/cancelar-baixa', requireRole(['GESTOR']), async (req, res) => {
       }
 
       await client.query(
-        `UPDATE competencias_folha SET status = 'PENDENTE', data_baixa = NULL, usuario_baixa_id = NULL WHERE id = $2`,
-        [user.userId, competencia_id]
+        `UPDATE competencias_folha SET status = 'PENDENTE', data_baixa = NULL, usuario_baixa_id = NULL WHERE id = $1`,
+        [competencia_id]
       );
 
       const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';

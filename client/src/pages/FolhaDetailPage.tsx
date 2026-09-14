@@ -63,7 +63,7 @@ function FolhaContent() {
   const cancelarBaixaMutation = useMutation({
     mutationFn: async (competencia_id: string) => (await api.post('/folha/cancelar-baixa', { competencia_id })).data,
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['folha'] }); setCancelModal(null); },
-    onError: (err: any) => { setModalError(err?.response?.data?.error || 'Erro ao cancelar baixa.'); },
+    onError: (err: any) => { setModalError(err?.response?.data?.detail || err?.response?.data?.error || 'Erro ao cancelar baixa.'); },
   });
 
   const rhRubrica = rubricas?.find((r) => r.rubrica === 'RH');

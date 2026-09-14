@@ -6,6 +6,7 @@ import { createAlocacaoSchema, baixaCompetenciaSchema, baixaLoteSchema } from '.
 import { z } from 'zod';
 
 const router = Router();
+const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 function calcularValorMensal(nominal: number, nivel: number): number {
   return nominal * (1 + nivel / 3);
@@ -170,12 +171,13 @@ router.post('/baixar-individual', requireRole(['GESTOR']), async (req, res) => {
       await client.query('BEGIN');
       await setAuditContext(client, user.userId);
 
-      const competenciaResult = await client.query<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number; projeto_coordenador_id: string }>(
-        `SELECT cf.*, rp.id as rubrica_projeto_id, p.coordenador_id as projeto_coordenador_id
+      const competenciaResult = await client.query<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number; projeto_coordenador_id: string; nome_colaborador: string }>(
+        `SELECT cf.*, rp.id as rubrica_projeto_id, p.coordenador_id as projeto_coordenador_id, u.nome_completo as nome_colaborador
          FROM competencias_folha cf
          JOIN alocacao_rh a ON cf.alocacao_rh_id = a.id
          JOIN rubricas_projeto rp ON rp.projeto_id = a.projeto_id AND rp.rubrica = 'RH'
          JOIN projetos p ON p.id = a.projeto_id
+         JOIN usuarios u ON u.id = a.usuario_id
          WHERE cf.id = $1 AND cf.status = 'PENDENTE'
          FOR UPDATE OF cf`,
         [competencia_id]
@@ -204,7 +206,7 @@ router.post('/baixar-individual', requireRole(['GESTOR']), async (req, res) => {
       await client.query(
         `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
          VALUES ($1, $2, $3, CURRENT_DATE, $4)`,
-        [competencia.rubrica_projeto_id, `Baixa folha - competência ${competencia.mes}/${competencia.ano} [${competencia_id}]`, valorDevido, user.userId]
+        [competencia.rubrica_projeto_id, `Folha ${MESES[competencia.mes - 1]}/${competencia.ano} - ${competencia.nome_colaborador}`, valorDevido, user.userId]
       );
 
       await client.query(
@@ -328,11 +330,12 @@ router.post('/cancelar-baixa', requireRole(['GESTOR']), async (req, res) => {
       await client.query('BEGIN');
       await setAuditContext(client, user.userId);
 
-      const competenciaResult = await client.query<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number; alocacao_rh_id: string }>(
-        `SELECT cf.*, rp.id as rubrica_projeto_id
+      const competenciaResult = await client.query<{ id: string; valor_devido: number; rubrica_projeto_id: string; mes: number; ano: number; alocacao_rh_id: string; nome_colaborador: string }>(
+        `SELECT cf.*, rp.id as rubrica_projeto_id, u.nome_completo as nome_colaborador
          FROM competencias_folha cf
          JOIN alocacao_rh a ON cf.alocacao_rh_id = a.id
          JOIN rubricas_projeto rp ON rp.projeto_id = a.projeto_id AND rp.rubrica = 'RH'
+         JOIN usuarios u ON u.id = a.usuario_id
          WHERE cf.id = $1 AND cf.status = 'PAGO'
          FOR UPDATE OF cf`,
         [competencia_id]
@@ -341,15 +344,16 @@ router.post('/cancelar-baixa', requireRole(['GESTOR']), async (req, res) => {
       if (!competencia) { await client.query('ROLLBACK'); res.status(404).json({ error: 'Competência não encontrada ou não está PAGA' }); return; }
 
       const valorDevido = parseFloat(String(competencia.valor_devido));
-      const descricaoEsperada = `Baixa folha - competência ${competencia.mes}/${competencia.ano} [${competencia_id}]`;
-      const descricaoLegada = `Baixa folha - competência ${competencia.mes}/${competencia.ano}`;
+      const descricaoNova = `Folha ${MESES[competencia.mes - 1]}/${competencia.ano} - ${competencia.nome_colaborador}`;
+      const descricaoAtual = `Baixa folha - competência ${competencia.mes}/${competencia.ano}`;
+      const descricaoComId = `Baixa folha - competência ${competencia.mes}/${competencia.ano} [${competencia_id}]`;
       const lancResult = await client.query<{ id: string; valor: number }>(
         `DELETE FROM lancamentos
          WHERE rubrica_projeto_id = $1
-           AND (descricao = $2 OR descricao = $3)
-           AND valor = $4
+           AND (descricao = $2 OR descricao = $3 OR descricao = $4)
+           AND valor = $5
          RETURNING id, valor`,
-        [competencia.rubrica_projeto_id, descricaoEsperada, descricaoLegada, valorDevido]
+        [competencia.rubrica_projeto_id, descricaoNova, descricaoAtual, descricaoComId, valorDevido]
       );
 
       await client.query(

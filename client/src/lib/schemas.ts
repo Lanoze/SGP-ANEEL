@@ -20,6 +20,21 @@ export const createProjetoSchema = z.object({
   coordenador_id: z.string().uuid(),
   data_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   data_fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+}).refine((d) => d.data_inicio <= d.data_fim, {
+  message: 'Data de início deve ser anterior ou igual à data de fim',
+  path: ['data_fim'],
+});
+
+export const updateProjetoSchema = z.object({
+  codigo_aneel: z.string().min(1).max(50),
+  titulo: z.string().min(1).max(500),
+  descricao: z.string().optional(),
+  coordenador_id: z.string().uuid(),
+  data_inicio: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  data_fim: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+}).refine((d) => d.data_inicio <= d.data_fim, {
+  message: 'Data de início deve ser anterior ou igual à data de fim',
+  path: ['data_fim'],
 });
 
 export const createLancamentoSchema = z.object({

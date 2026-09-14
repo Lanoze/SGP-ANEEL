@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query, queryOne } from '../lib/db';
 import { requireAuth, requireRole } from '../lib/rbac';
-import { createProjetoSchema } from '../lib/schemas';
+import { createProjetoSchema, updateProjetoSchema } from '../lib/schemas';
 import type { Projeto } from '../lib/types';
 
 function gerarMeses(dataInicio: string, dataFim: string): { ano: number; mes: number }[] {
@@ -89,7 +89,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 
 router.put('/:id', requireRole(['GESTOR']), async (req, res) => {
   try {
-    const parsed = createProjetoSchema.partial().safeParse(req.body);
+    const parsed = updateProjetoSchema.partial().safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.issues[0].message });
       return;

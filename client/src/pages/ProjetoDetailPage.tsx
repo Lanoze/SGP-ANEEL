@@ -8,7 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import Breadcrumbs from '../components/Breadcrumbs';
 import { Modal } from '../components/FormComponents';
-import { createLancamentoSchema, createProjetoSchema, type createLancamentoInput, type createProjetoInput } from '../lib/schemas';
+import { createLancamentoSchema, createProjetoSchema, updateProjetoSchema, type createLancamentoInput, type createProjetoInput } from '../lib/schemas';
 import type { Projeto, RubricaProjeto, Lancamento } from '../types';
 
 const RUBRICA_LABELS: Record<string, string> = {
@@ -345,7 +345,7 @@ function ConfirmDeleteLancamentoModal({ lancamento, onClose, onConfirm, isPendin
 
 function EditProjetoModal({ projeto, onClose, onSubmit, isPending, error }: { projeto: Projeto; onClose: () => void; onSubmit: (d: Partial<createProjetoInput>) => void; isPending: boolean; error?: string }) {
   const form = useForm<createProjetoInput>({
-    resolver: zodResolver(createProjetoSchema),
+    resolver: zodResolver(updateProjetoSchema),
     defaultValues: { codigo_aneel: projeto.codigo_aneel, titulo: projeto.titulo, descricao: projeto.descricao || '', coordenador_id: projeto.coordenador_id, data_inicio: projeto.data_inicio, data_fim: projeto.data_fim },
     mode: 'onChange',
   });
@@ -384,10 +384,12 @@ function EditProjetoModal({ projeto, onClose, onSubmit, isPending, error }: { pr
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Data Início</label>
           <input type="date" {...form.register('data_inicio')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+          {form.formState.errors.data_inicio && <p className="text-red-500 text-xs mt-1">{form.formState.errors.data_inicio.message}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Data Fim</label>
           <input type="date" {...form.register('data_fim')} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+          {form.formState.errors.data_fim && <p className="text-red-500 text-xs mt-1">{form.formState.errors.data_fim.message}</p>}
         </div>
       </div>
       {error && <p className="text-red-500 text-sm mt-2">{error}</p>}

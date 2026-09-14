@@ -1,5 +1,94 @@
 import { pool } from './db';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+
+function uuid(): string {
+  return crypto.randomUUID();
+}
+
+function randInt(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function pickN<T>(arr: T[], n: number): T[] {
+  const shuffled = [...arr].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, n);
+}
+
+function randomDate(start: Date, end: Date): string {
+  const d = new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+  return d.toISOString().slice(0, 10);
+}
+
+function randomBudget(): number {
+  const base = randInt(1000000, 10000000);
+  return Math.round(base / 1000) * 1000;
+}
+
+function distributeBudget(total: number): Record<string, number> {
+  const weights = {
+    RH: 0.25 + Math.random() * 0.1,
+    ST: 0.15 + Math.random() * 0.1,
+    MC: 0.10 + Math.random() * 0.08,
+    EP: 0.15 + Math.random() * 0.1,
+    VD: 0.05 + Math.random() * 0.05,
+    OU: 0.10 + Math.random() * 0.07,
+  };
+  const sum = Object.values(weights).reduce((a, b) => a + b, 0);
+  const result: Record<string, number> = {};
+  let remaining = total;
+  const keys = Object.keys(weights) as (keyof typeof weights)[];
+  for (let i = 0; i < keys.length - 1; i++) {
+    const val = Math.round((weights[keys[i]] / sum) * total / 1000) * 1000;
+    result[keys[i]] = val;
+    remaining -= val;
+  }
+  result[keys[keys.length - 1]] = Math.max(remaining, 0);
+  return result;
+}
+
+const RUBRICA_LABELS: Record<string, string> = {
+  RH: 'Recursos Humanos', ST: 'Serviços de Terceiros', MC: 'Materiais de Consumo',
+  EP: 'Equipamentos', VD: 'Viagens e Diárias', OU: 'Outros Custos',
+};
+
+const LANCAMENTO_DESC: Record<string, string[]> = {
+  RH: ['Bolsista de iniciação científica', 'Pesquisador Dedicado', 'Auxiliar de pesquisa'],
+  ST: ['Consultoria técnica', 'Análise laboratorial', 'Serviço de manutenção'],
+  MC: ['Reagentes químicos', 'Material de escritório', 'Insumos para laboratório'],
+  EP: ['Microcomputadores', 'Monitor de medição', 'Servidor de dados'],
+  VD: ['Viagem a congresso', 'Deslocamento técnica', 'Hospedagem reunião'],
+  OU: ['Publicação de artigo', 'Taxas bancárias', 'Serviços de nuvem'],
+};
+
+const NIVEIS_ACADEMICOS = ['Graduação', 'Especialização', 'Mestrado', 'Doutorado'];
+
+const PROJECT_TITLES = [
+  'Modernização do Sistema de Distribuição de Energia Elétrica',
+  'Desenvolvimento de Painel Solar de Alta Eficiência',
+  'Estudo de Impacto Ambiental de Linhas de Transmissão',
+  'Automação de Subestações com IoT',
+  'Análise de Qualidade da Energia em Redes Inteligentes',
+  'Estocagem de Energia com Baterias de Estado Sólido',
+  'Monitoramento de Linhas de Transmissão por Drones',
+  'Desenvolvimento de Transformador Amorfico',
+  'Sistema de Proteção contra Descargas Atmosféricas',
+  'Otimização de Fluxo de Carga em Redes de Distribuição',
+  'Implementação de Medidor Inteligente (AMI)',
+  'Estudo de Micro Redes para Áreas Remotas',
+  'Controle Inteligente de Iluminação Pública LED',
+  'Desenvolvimento de Condutor de Alta Temperatura',
+  'Análise de谐波 na Rede de Distribuição',
+  'Sistema de Gestão de Demanda em Tempo Real',
+  'Monitoramento Acústico de Transformadores',
+  'Desenvolvimento de isolante nanoestruturado',
+  'Plataforma de Dados para Gestão de Perdas',
+  'Protótipo de Turbólica Eólica para Distribuição',
+];
 
 async function seed() {
   console.log('🌱 Executando seed SGP-ANEEL...');
@@ -33,11 +122,16 @@ async function seed() {
     { id: 'e4f5a6b7-c8d9-0123-efab-234567890123', nome: 'Vanessa Cardoso',    cpf: '16161616161', email: 'vanessa@aneel.gov.br',  perfil: 'BOLSISTA' },
   ];
 
+  const coordenadores = EXPECTED_USERS.filter(u => u.perfil === 'COORDENADOR');
+  const pesquisadores = EXPECTED_USERS.filter(u => u.perfil === 'PESQUISADOR');
+  const bolsistas = EXPECTED_USERS.filter(u => u.perfil === 'BOLSISTA');
+  const colaboraveis = EXPECTED_USERS.filter(u => u.perfil !== 'GESTOR');
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    // Clean existing data (respect FK order)
+    await client.query('DELETE FROM audit_logs');
     await client.query('DELETE FROM competencias_folha');
     await client.query('DELETE FROM alocacao_rh');
     await client.query('DELETE FROM upload_chunks');
@@ -49,7 +143,6 @@ async function seed() {
     await client.query('DELETE FROM usuarios');
     console.log('   ✓ Dados antigos removidos');
 
-    // Insert users
     for (const u of EXPECTED_USERS) {
       await client.query(
         `INSERT INTO usuarios (id, nome_completo, cpf, email, hash_senha, perfil, ativo)
@@ -59,57 +152,105 @@ async function seed() {
     }
     console.log(`   ✓ ${EXPECTED_USERS.length} usuários`);
 
-    // Insert project
-    await client.query(
-      `INSERT INTO projetos (id, codigo_aneel, titulo, descricao, coordenador_id, data_inicio, data_fim)
-       VALUES ('d4e5f6a7-b8c9-0123-defa-234567890123', 'SGP-2026-001', 'Sistema de Gestao de Projetos ANEEL',
-         'Projeto piloto para gestao de projetos de P&D regulados pela ANEEL',
-         $1, '2026-01-01', '2026-12-31')`,
-      [EXPECTED_USERS[1].id]
-    );
-    console.log('   ✓ 1 projeto');
+    let totalRubricas = 0;
+    let totalLancamentos = 0;
+    let totalAlocacoes = 0;
+    let totalCompetencias = 0;
 
-    // Insert rubricas
-    const rubricas: [string, number][] = [
-      ['RH', 150000], ['ST', 80000], ['MC', 60000],
-      ['EP', 40000],  ['VD', 30000], ['OU', 40000],
-    ];
-    for (const [rubrica, valor] of rubricas) {
+    for (let i = 0; i < 20; i++) {
+      const projetoId = uuid();
+      const codigo = `SGP-2026-${String(i + 1).padStart(3, '0')}`;
+      const titulo = PROJECT_TITLES[i];
+      const duracaoMeses = pick([12, 24, 36]);
+      const dataInicio = randomDate(new Date('2026-01-01'), new Date('2026-06-01'));
+      const inicio = new Date(dataInicio);
+      inicio.setMonth(inicio.getMonth() + duracaoMeses);
+      const dataFim = inicio.toISOString().slice(0, 10);
+      const coordenador = pick(coordenadores);
+
       await client.query(
-        `INSERT INTO rubricas_projeto (projeto_id, rubrica, valor_previsto)
-         VALUES ('d4e5f6a7-b8c9-0123-defa-234567890123', $1, $2)`,
-        [rubrica, valor]
+        `INSERT INTO projetos (id, codigo_aneel, titulo, descricao, coordenador_id, data_inicio, data_fim)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [projetoId, codigo, titulo, `Projeto de P&D regulamentado pela ANEEL — ${titulo}`, coordenador.id, dataInicio, dataFim]
       );
-    }
-    console.log('   ✓ 6 rubricas');
 
-    // Insert alocacao RH
-    await client.query(
-      `INSERT INTO alocacao_rh (projeto_id, usuario_id, papel_projeto, nivel_academico, valor_nominal_capes, nivel_complemento, valor_mensal_calculado)
-       VALUES ('d4e5f6a7-b8c9-0123-defa-234567890123', $1, 'PESQUISADOR', 'Mestrado', 8000.00, 1, 10666.67)`,
-      [EXPECTED_USERS[2].id]
-    );
-    console.log('   ✓ 1 alocação');
+      const budget = randomBudget();
+      const rubricaValues = distributeBudget(budget);
+      const rubricaIds: Record<string, string> = {};
 
-    // Get alocacao ID for competencias
-    const alocacao = await client.query<{ id: string }>(
-      `SELECT id FROM alocacao_rh WHERE projeto_id = $1 AND usuario_id = $2`,
-      ['d4e5f6a7-b8c9-0123-defa-234567890123', EXPECTED_USERS[2].id]
-    );
-
-    if (alocacao.rows[0]) {
-      const alocId = alocacao.rows[0].id;
-      for (let mes = 1; mes <= 6; mes++) {
+      for (const [rubrica, valor] of Object.entries(rubricaValues)) {
+        const rid = uuid();
+        rubricaIds[rubrica] = rid;
         await client.query(
-          `INSERT INTO competencias_folha (alocacao_rh_id, ano, mes, valor_devido, status)
-           VALUES ($1, 2026, $2, 10666.67, 'PENDENTE')`,
-          [alocId, mes]
+          `INSERT INTO rubricas_projeto (id, projeto_id, rubrica, valor_previsto)
+           VALUES ($1, $2, $3, $4)`,
+          [rid, projetoId, rubrica, valor]
         );
+        totalRubricas++;
+      }
+
+      const numColaboradores = randInt(2, 6);
+      const colaboradores = pickN(colaboraveis.filter(u => u.id !== coordenador.id), numColaboradores);
+
+      for (const col of colaboradores) {
+        const papel = pick(['PESQUISADOR', 'BOLSISTA', 'PESQUISADOR', 'PESQUISADOR']);
+        const nivel = pick(NIVEIS_ACADEMICOS);
+        const valorNominal = pick([3000, 4000, 5000, 6000, 8000, 10000, 12000]);
+        const nivelComplemento = pick([0, 1, 2, 3]);
+        const multiplicador = 1 + nivelComplemento / 3;
+        const valorMensal = Math.round(valorNominal * multiplicador * 100) / 100;
+
+        await client.query(
+          `INSERT INTO alocacao_rh (projeto_id, usuario_id, papel_projeto, nivel_academico, valor_nominal_capes, nivel_complemento, valor_mensal_calculado)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [projetoId, col.id, papel, nivel, valorNominal, nivelComplemento, valorMensal]
+        );
+        totalAlocacoes++;
+
+        const alocResult = await client.query<{ id: string }>(
+          `SELECT id FROM alocacao_rh WHERE projeto_id = $1 AND usuario_id = $2`,
+          [projetoId, col.id]
+        );
+        const alocId = alocResult.rows[0].id;
+
+        const mesesComp = Math.min(duracaoMeses, 12);
+        for (let mes = 1; mes <= mesesComp; mes++) {
+          const statuses = ['PENDENTE', 'PENDENTE', 'PENDENTE', 'PAGO'];
+          await client.query(
+            `INSERT INTO competencias_folha (alocacao_rh_id, ano, mes, valor_devido, status)
+             VALUES ($1, 2026, $2, $3, $4)`,
+            [alocId, mes, valorMensal, pick(statuses)]
+          );
+          totalCompetencias++;
+        }
+      }
+
+      const rubricaEntries = Object.entries(rubricaIds);
+      const numLancamentos = randInt(5, 15);
+
+      for (let j = 0; j < numLancamentos; j++) {
+        const [, rid] = pick(rubricaEntries);
+        const rubricaKey = rubricaEntries.find(([, v]) => v === rid)?.[0] || 'OU';
+        const desc = pick(LANCAMENTO_DESC[rubricaKey]);
+        const valorLanc = Math.round((Math.random() * 50000 + 1000) * 100) / 100;
+        const usuario = pick(colaboraveis);
+        const dataDespesa = randomDate(new Date(dataInicio), new Date(dataFim));
+
+        await client.query(
+          `INSERT INTO lancamentos (rubrica_projeto_id, descricao, valor, data_despesa, usuario_registro_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [rid, desc, valorLanc, dataDespesa, usuario.id]
+        );
+        totalLancamentos++;
       }
     }
-    console.log('   ✓ 6 competências');
 
     await client.query('COMMIT');
+    console.log(`   ✓ 20 projetos`);
+    console.log(`   ✓ ${totalRubricas} rubricas`);
+    console.log(`   ✓ ${totalAlocacoes} alocações RH`);
+    console.log(`   ✓ ${totalCompetencias} competências`);
+    console.log(`   ✓ ${totalLancamentos} lançamentos`);
     console.log('\n✅ Seed concluído!');
     console.log('   Senha de todos: 123456');
     console.log('   Login: gestor@aneel.gov.br');

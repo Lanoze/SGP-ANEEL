@@ -45,6 +45,8 @@ export default function RelatoriosPage() {
 
 function RelatoriosContent() {
   const [aba, setAba] = useState<'rubricas' | 'folha' | 'folha_instituicao' | 'pendencias'>('rubricas');
+  const [filtroFolhaProjeto, setFiltroFolhaProjeto] = useState('');
+  const [filtroFolhaColaborador, setFiltroFolhaColaborador] = useState('');
   const [filtroPerfil, setFiltroPerfil] = useState('');
   const [filtroNivel, setFiltroNivel] = useState('');
   const [filtroStatus, setFiltroStatus] = useState('');
@@ -91,6 +93,8 @@ function RelatoriosContent() {
 
   const isLoading = loadingRubricas || loadingFolha || loadingPend || loadingInst;
 
+  const projetosUnicosFolha = [...new Set(folhaDados?.map((f) => f.codigo_aneel) || [])];
+  const colaboradoresUnicosFolha = [...new Set(folhaDados?.map((f) => f.nome_completo) || [])];
   const niveisUnicos = [...new Set(folhaDados?.map((f) => f.nivel_academico) || [])];
   const mesesUnicos = [...new Set(folhaDados?.map((f) => f.mes) || [])].sort((a, b) => a - b);
   const anosUnicos = [...new Set(folhaDados?.map((f) => f.ano) || [])].sort((a, b) => a - b);
@@ -102,6 +106,8 @@ function RelatoriosContent() {
   const anosUnicosPend = [...new Set(pendDados?.map((p) => p.ano) || [])].sort((a, b) => a - b);
 
   const folhaFiltrada = folhaDados?.filter((f) => {
+    if (filtroFolhaProjeto && f.codigo_aneel !== filtroFolhaProjeto) return false;
+    if (filtroFolhaColaborador && f.nome_completo !== filtroFolhaColaborador) return false;
     if (filtroPerfil && f.perfil !== filtroPerfil) return false;
     if (filtroNivel && f.nivel_academico !== filtroNivel) return false;
     if (filtroStatus && f.status !== filtroStatus) return false;
@@ -190,6 +196,20 @@ function RelatoriosContent() {
         <div className="bg-white rounded-xl shadow overflow-hidden">
           <div className="px-4 py-3 bg-slate-50 border-b flex flex-wrap gap-3 no-print">
             <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Projeto</label>
+              <select value={filtroFolhaProjeto} onChange={(e) => setFiltroFolhaProjeto(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                <option value="">Todos</option>
+                {projetosUnicosFolha.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1">Colaborador</label>
+              <select value={filtroFolhaColaborador} onChange={(e) => setFiltroFolhaColaborador(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
+                <option value="">Todos</option>
+                {colaboradoresUnicosFolha.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Perfil</label>
               <select value={filtroPerfil} onChange={(e) => setFiltroPerfil(e.target.value)} className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
                 <option value="">Todos</option>
@@ -229,9 +249,9 @@ function RelatoriosContent() {
                 {anosUnicos.map((a) => <option key={a} value={a}>{a}</option>)}
               </select>
             </div>
-            {(filtroPerfil || filtroNivel || filtroStatus || filtroMes || filtroAno) && (
+            {(filtroFolhaProjeto || filtroFolhaColaborador || filtroPerfil || filtroNivel || filtroStatus || filtroMes || filtroAno) && (
               <div className="flex items-end">
-                <button onClick={() => { setFiltroPerfil(''); setFiltroNivel(''); setFiltroStatus(''); setFiltroMes(''); setFiltroAno(''); }}
+                <button onClick={() => { setFiltroFolhaProjeto(''); setFiltroFolhaColaborador(''); setFiltroPerfil(''); setFiltroNivel(''); setFiltroStatus(''); setFiltroMes(''); setFiltroAno(''); }}
                   className="px-3 py-1.5 text-red-600 hover:bg-red-50 rounded-lg text-sm border border-red-200">Limpar Filtros</button>
               </div>
             )}
@@ -240,6 +260,8 @@ function RelatoriosContent() {
             <div className="px-4 py-2 bg-slate-50 border-b text-xs text-slate-500 print-filter-info hidden">
               {(() => {
                 const filtros: string[] = [];
+                if (filtroFolhaProjeto) filtros.push(`Projeto: ${filtroFolhaProjeto}`);
+                if (filtroFolhaColaborador) filtros.push(`Colaborador: ${filtroFolhaColaborador}`);
                 if (filtroPerfil) filtros.push(`Perfil: ${filtroPerfil}`);
                 if (filtroNivel) filtros.push(`Nível: ${filtroNivel}`);
                 if (filtroStatus) filtros.push(`Status: ${filtroStatus}`);

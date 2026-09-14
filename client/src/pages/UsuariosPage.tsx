@@ -183,7 +183,7 @@ function EditUsuarioModal({ usuario, onClose, onSubmit, isPending, error }: { us
       footer={
         <>
           <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancelar</button>
-          <button onClick={form.handleSubmit(onSubmit)} disabled={isPending || !form.formState.isValid}
+          <button onClick={form.handleSubmit(onSubmit)} disabled={isPending}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
             {isPending ? 'Salvando...' : 'Salvar'}
           </button>
